@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Lock, Copy, ShieldCheck, KeyRound } from "lucide-react";
+import { Lock, Copy, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -16,13 +16,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useSession } from "@/context/SessionContext";
-import { useConnection } from "@/context/ConnectionContext";
 import { tagTypeFromTag, tagTypeLabel } from "@/lib/pii";
 import EmptyState from "@/components/app/EmptyState";
 
-export default function PrivacyVault({ onOpenSettings }) {
+export default function PrivacyVault() {
   const { piiMapping } = useSession();
-  const conn = useConnection();
   const [reveal, setReveal] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -65,18 +63,7 @@ export default function PrivacyVault({ onOpenSettings }) {
           <EmptyState
             icon={ShieldCheck}
             title="Belum ada yang disamarin"
-            description={
-              conn.maskConfigured
-                ? "Jalankan analisis — data sensitif bakal otomatis dimasking & muncul di sini."
-                : "Endpoint PII belum diatur. Sambungkan dulu biar masking jalan."
-            }
-            action={
-              !conn.maskConfigured ? (
-                <Button size="sm" variant="outline" onClick={onOpenSettings} className="gap-2">
-                  <KeyRound className="h-4 w-4" /> Atur Endpoint
-                </Button>
-              ) : null
-            }
+            description="Jalankan analisis — data sensitif bakal otomatis dimasking & muncul di sini."
             testId="vault-empty-state"
           />
         </div>

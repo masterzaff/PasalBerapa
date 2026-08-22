@@ -16,13 +16,7 @@ import { useUI } from "@/context/UIContext";
 
 function PanelButton({ onClick, icon: Icon, label, count, testId }) {
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={onClick}
-      data-testid={testId}
-      className="gap-1.5"
-    >
+    <Button variant="outline" size="sm" onClick={onClick} data-testid={testId} className="gap-1.5">
       <Icon className="h-4 w-4" />
       <span className="hidden sm:inline">{label}</span>
       {count > 0 && (
@@ -34,7 +28,7 @@ function PanelButton({ onClick, icon: Icon, label, count, testId }) {
   );
 }
 
-export default function ChatView({ onOpenSettings }) {
+export default function ChatView() {
   const s = useSession();
   const { busy: analyzing, busyMode } = useAnalysis();
   const ui = useUI();
@@ -46,7 +40,6 @@ export default function ChatView({ onOpenSettings }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Header row */}
       <div className="border-b bg-background/70 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-2 px-4 py-2">
           <div className="flex min-w-0 items-center gap-2 text-sm">
@@ -66,15 +59,10 @@ export default function ChatView({ onOpenSettings }) {
         </div>
       </div>
 
-      {/* Feed */}
       <div ref={feedRef} className="scroll-slim min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
           {s.messages.length === 0 && !analyzing && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex gap-2.5"
-            >
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2.5">
               <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
                 <Bot className="h-4 w-4" />
               </div>
@@ -82,7 +70,7 @@ export default function ChatView({ onOpenSettings }) {
                 Dokumen <span className="font-medium">{s.file?.name}</span> udah kebaca
                 {s.extractInfo ? ` (${s.extractInfo.totalPages} halaman)` : ""}. Mau mulai dari
                 mana? Klik salah satu chip di bawah — <b>Bedah Risiko</b>, <b>Ringkas Isi</b>,
-                atau <b>Jelaskan Pasal Penting</b> — atau langsung ketik pertanyaanmu. 🙌
+                atau <b>Jelaskan Pasal Penting</b> — atau langsung ketik pertanyaanmu.
               </div>
             </motion.div>
           )}
@@ -107,14 +95,12 @@ export default function ChatView({ onOpenSettings }) {
         </div>
       </div>
 
-      {/* Composer */}
       <div className="border-t bg-background/80 backdrop-blur">
         <div className="mx-auto max-w-3xl px-4 py-3">
-          <ChatComposer variant="docked" onOpenSettings={onOpenSettings} />
+          <ChatComposer variant="docked" />
         </div>
       </div>
 
-      {/* On-demand drawer: Dokumen / Risiko / Vault */}
       <Sheet open={ui.panelOpen} onOpenChange={ui.setPanelOpen}>
         <SheetContent side="right" className="flex w-full flex-col p-0 sm:max-w-xl md:max-w-2xl">
           <SheetTitle className="sr-only">Panel Dokumen, Risiko, dan Vault</SheetTitle>
@@ -136,7 +122,7 @@ export default function ChatView({ onOpenSettings }) {
               />
             </TabsContent>
             <TabsContent value="vault" className="mt-2 min-h-0 flex-1">
-              <PrivacyVault onOpenSettings={onOpenSettings} />
+              <PrivacyVault />
             </TabsContent>
           </Tabs>
         </SheetContent>

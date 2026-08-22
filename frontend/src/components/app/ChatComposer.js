@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { useSession } from "@/context/SessionContext";
-import { useConnection } from "@/context/ConnectionContext";
 import { useAnalysis } from "@/context/AnalysisContext";
 import { useDocumentUpload } from "@/hooks/useDocumentUpload";
 
@@ -14,9 +13,8 @@ const QUICK = [
   { mode: "key_articles", label: "Jelaskan Pasal Penting", icon: Sparkles },
 ];
 
-export default function ChatComposer({ variant = "docked", onOpenSettings }) {
+export default function ChatComposer({ variant = "docked", seed }) {
   const s = useSession();
-  const conn = useConnection();
   const { run, busy: analyzing } = useAnalysis();
   const { uploadFile, progress, busy: extracting, cancel } = useDocumentUpload();
   const [input, setInput] = useState("");
@@ -31,6 +29,15 @@ export default function ChatComposer({ variant = "docked", onOpenSettings }) {
     ta.style.height = "auto";
     ta.style.height = Math.min(ta.scrollHeight, 160) + "px";
   }, [input]);
+
+  // Prefill from example question chips.
+  useEffect(() => {
+    if (seed && seed.text) {
+      setInput(seed.text);
+      if (taRef.current) taRef.current.focus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed && seed.id]);
 
   const pickFile = () => fileRef.current && fileRef.current.click();
   const onFile = async (e) => {
@@ -161,15 +168,8 @@ export default function ChatComposer({ variant = "docked", onOpenSettings }) {
         </div>
       </div>
 
-      <div className="mt-2 flex items-center justify-center gap-1 px-1 text-center text-[11px] text-muted-foreground">
-        {s.hasDocument && !conn.analyzeConfigured ? (
-          <span>
-            Backend analisis belum nyambung.{" "}
-            <button onClick={onOpenSettings} className="font-semibold text-primary underline">
-              Atur di Settings
-            </button>
-          </span>
-        ) : hero ? (
+      <div className="mt-2 px-1 text-center text-[11px] text-muted-foreground">
+        {hero ? (
           <span>Tarik &amp; lepas PDF ke mana aja · data pribadi dimasking sebelum dianalisis</span>
         ) : (
           <span>Jawaban bisa keliru — tetap cek dokumen aslinya ya.</span>
