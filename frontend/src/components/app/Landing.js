@@ -439,9 +439,6 @@ export default function Landing({ onOpenAuth }) {
 
           {/* Interactive Hero Composer */}
           <div className="relative z-10 mx-auto mt-8 max-w-2xl">
-            <div className="absolute -left-2 -top-3 -z-10 h-3 w-40 rounded-full bg-foreground/10" aria-hidden />
-            <div className="absolute -right-1 top-6 -z-10 h-3 w-28 rounded-full bg-primary/15" aria-hidden />
-            <div className="absolute -bottom-3 left-10 -z-10 h-3 w-36 rounded-full bg-foreground/[0.07]" aria-hidden />
             <motion.div
               initial={{ scale: 0.98, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.45, delay: 0.1 }}
               className="paper-grain relative overflow-hidden rounded-[calc(var(--radius)+0.35rem)] border bg-card/90 p-3 text-left shadow-[0_18px_50px_-30px_hsl(var(--foreground)/0.35)] backdrop-blur-md"
