@@ -41,11 +41,13 @@ class ConversationIn(BaseModel):
     title: Optional[str] = None
     messages: List[Dict[str, Any]] = []
     doc_name: Optional[str] = None
+    pii_mapping: Dict[str, str] = {}
 
 
 class ConversationUpdate(BaseModel):
     title: Optional[str] = None
     messages: Optional[List[Dict[str, Any]]] = None
+    pii_mapping: Optional[Dict[str, str]] = None
 
 
 # ---------- Helpers ----------
@@ -189,6 +191,7 @@ async def save_or_upsert_conversation(
             if existing:
                 existing.title = clean_title
                 existing.messages = body.messages
+                existing.pii_mapping = body.pii_mapping
                 if body.doc_name:
                     existing.doc_name = body.doc_name
                 existing.updated_at = now
@@ -206,6 +209,7 @@ async def save_or_upsert_conversation(
             title=clean_title,
             doc_name=body.doc_name,
             messages=body.messages,
+            pii_mapping=body.pii_mapping,
             created_at=now,
             updated_at=now
         )
@@ -241,6 +245,7 @@ async def get_conversation(
         "title": c.title,
         "doc_name": c.doc_name,
         "messages": c.messages or [],
+        "pii_mapping": c.pii_mapping or {},
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
     }
 
@@ -267,6 +272,8 @@ async def update_conversation(
             c.title = body.title.strip()[:140]
         if body.messages is not None:
             c.messages = body.messages
+        if body.pii_mapping is not None:
+            c.pii_mapping = body.pii_mapping
         c.updated_at = datetime.now(timezone.utc)
         
         await db.commit()

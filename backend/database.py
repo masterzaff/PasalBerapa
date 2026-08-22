@@ -56,6 +56,7 @@ class Conversation(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False, default="Percakapan")
     doc_name: Mapped[str] = mapped_column(String(255), nullable=True)
     messages: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    pii_mapping: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
@@ -63,6 +64,12 @@ async def init_db():
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            # create_all only creates missing tables, not missing columns on an
+            # existing one — no migration framework here, so patch it idempotently.
+            from sqlalchemy import text
+            await conn.execute(text(
+                "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pii_mapping JSONB NOT NULL DEFAULT '{}'::jsonb"
+            ))
         logger.info("PostgreSQL database tables initialized.")
     except Exception as e:
         logger.warning(f"Could not connect to PostgreSQL on init: {e}")

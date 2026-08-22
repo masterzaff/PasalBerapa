@@ -37,7 +37,7 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
   const { run, busy: analyzing } = useAnalysis();
   const { user } = useAuth();
   const { uploadFile, progress, busy: extracting, cancel } = useDocumentUpload();
-  const { mode } = useUI();
+  const { audienceMode } = useUI();
   const router = useRouter();
   const pathname = usePathname();
   const [input, setInput] = useState("");
@@ -52,7 +52,10 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
     setMounted(true);
   }, []);
 
-  const isBisnis = mode === "bisnis";
+  // Audience mode is cosmetic homepage copy only — the docked composer inside
+  // an actual chat session always uses the neutral/personal copy, since the
+  // toggle that sets it isn't even visible there (see TopBar.tsx).
+  const isBisnis = hero && audienceMode === "bisnis";
   const activePrompts = isBisnis ? BUSINESS_PROMPTS : PERSONAL_PROMPTS;
 
   const BASE_PH = s.hasDocument

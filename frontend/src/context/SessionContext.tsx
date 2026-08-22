@@ -134,13 +134,13 @@ export function SessionProvider({ children }) {
 
   // Load a saved conversation (from history/DB) into the active session.
   // Keeps the given id so the URL /chat/:id stays stable across refresh.
-  const loadConversation = useCallback(({ id, messages: msgs, docName, title } = {}) => {
+  const loadConversation = useCallback(({ id, messages: msgs, docName, title, piiMapping } = {}) => {
     setSessionId(id || newSessionId());
     setFile(docName ? { name: docName } : null);
     setRawText("");
     setExtractInfo(null);
     setMaskedText("");
-    setPiiMapping({});
+    setPiiMapping(piiMapping && typeof piiMapping === "object" ? piiMapping : {});
     setPiiEntities([]);
     setPiiConfirmed(false);
     setShowPiiModal(false);

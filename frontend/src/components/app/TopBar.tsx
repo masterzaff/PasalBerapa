@@ -10,7 +10,7 @@ import { useUI } from "@/context/UIContext";
 export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome }) {
   const { resetSession, hasDocument, messages } = useSession();
   const { user, logout } = useAuth();
-  const { mode, setMode } = useUI();
+  const { audienceMode, setAudienceMode } = useUI();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -54,9 +54,9 @@ export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome }) {
               <button
                 type="button"
                 data-testid="mode-switch-bisnis"
-                onClick={() => setMode("bisnis")}
+                onClick={() => setAudienceMode("bisnis")}
                 className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition-all ${
-                  mode === "bisnis"
+                  audienceMode === "bisnis"
                     ? "bg-background text-foreground shadow-sm font-semibold"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
@@ -67,9 +67,9 @@ export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome }) {
               <button
                 type="button"
                 data-testid="mode-switch-personal"
-                onClick={() => setMode("personal")}
+                onClick={() => setAudienceMode("personal")}
                 className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition-all ${
-                  mode === "personal"
+                  audienceMode === "personal"
                     ? "bg-background text-foreground shadow-sm font-semibold"
                     : "text-muted-foreground hover:text-foreground"
                 }`}

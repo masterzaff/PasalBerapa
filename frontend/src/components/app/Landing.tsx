@@ -416,12 +416,12 @@ const EXAMPLES = [
 
 export default function Landing({ onOpenAuth }) {
   const { uploadFile, busy, progress } = useDocumentUpload();
-  const { mode } = useUI();
+  const { audienceMode } = useUI();
   const [dragging, setDragging] = useState(false);
   const [seed, setSeed] = useState(null);
   const depth = useRef(0);
 
-  const isBisnis = mode === "bisnis";
+  const isBisnis = audienceMode === "bisnis";
   const activeQuestions = isBisnis ? BUSINESS_QUESTIONS : PERSONAL_QUESTIONS;
   const activeFloatTags = isBisnis ? BUSINESS_FLOAT_TAGS : PERSONAL_FLOAT_TAGS;
 
@@ -525,7 +525,7 @@ export default function Landing({ onOpenAuth }) {
           {/* Ambient floating chips */}
           {activeFloatTags.map((f, i) => (
             <GlitchingTagChip
-              key={`${mode}-${f.original}-${i}`}
+              key={`${audienceMode}-${f.original}-${i}`}
               original={f.original}
               redacted={f.redacted}
               cls={f.cls}
@@ -547,7 +547,7 @@ export default function Landing({ onOpenAuth }) {
           )}
 
           <motion.div
-            key={mode}
+            key={audienceMode}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: [0.2, 0.8, 0.2, 1] }}

@@ -42,7 +42,7 @@ export default function HistorySheet({ open, onOpenChange }) {
   const openConv = async (id) => {
     try {
       const d = await authApi.getConversation(id, token);
-      s.loadConversation({ id, messages: d.messages || [], docName: d.doc_name });
+      s.loadConversation({ id, messages: d.messages || [], docName: d.doc_name, piiMapping: d.pii_mapping });
       onOpenChange(false);
       router.push(`/chat/${id}`);
       toast.success("Percakapan dibuka.");

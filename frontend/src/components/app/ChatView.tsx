@@ -67,11 +67,14 @@ export default function ChatView({ onOpenAuth }) {
           convTitle ||
           s.file?.name ||
           (firstUserMsg && firstUserMsg.content ? firstUserMsg.content.slice(0, 60) : "Percakapan");
+        // debugMessages is a full copy of the LLM request per reply — useful live,
+        // not worth persisting (bloats every autosave for no benefit on reload).
+        const persistMessages = s.messages.map(({ debugMessages, ...rest }) => rest);
         if (convId) {
-          await authApi.updateConversation(convId, { title, messages: s.messages }, token);
+          await authApi.updateConversation(convId, { title, messages: persistMessages, pii_mapping: s.piiMapping }, token);
         } else {
           const res = await authApi.saveConversation(
-            { title, messages: s.messages, doc_name: s.file?.name || null },
+            { title, messages: persistMessages, doc_name: s.file?.name || null, pii_mapping: s.piiMapping },
             token
           );
           setConvId(res.id);
@@ -86,7 +89,7 @@ export default function ChatView({ onOpenAuth }) {
         setSaving(false);
       }
     },
-    [user, s.messages, s.file, convId, convTitle, token, firstUserMsg, setConvId, setConvTitle]
+    [user, s.messages, s.file, s.piiMapping, convId, convTitle, token, firstUserMsg, setConvId, setConvTitle]
   );
 
   // Autosave: simpan otomatis tiap ada pesan baru (kalau sudah login).

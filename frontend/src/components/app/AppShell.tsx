@@ -60,7 +60,7 @@ export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShe
     setRestoring(true);
     authApi
       .getConversation(urlId, token)
-      .then((d) => loadConversation({ id: urlId, messages: d.messages || [], docName: d.doc_name }))
+      .then((d) => loadConversation({ id: urlId, messages: d.messages || [], docName: d.doc_name, piiMapping: d.pii_mapping }))
       .catch(() => router.replace("/"))
       .finally(() => setRestoring(false));
   }, [urlId, started, token, authLoading, router, loadConversation]);
