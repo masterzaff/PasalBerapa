@@ -32,15 +32,16 @@ export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShe
   }, []);
 
   const started = hasDocument || messages.length > 0;
-  const isChat = Boolean(isNewChat || urlId || (mounted && (started || restoring)));
+  const isChat = Boolean(isNewChat || urlId || (pathname !== "/" && mounted && (started || restoring)));
   const openAuth = () => setShowAuth(true);
   const openHistory = () => setShowHistory(true);
 
   // 1) Reflect the active session in the URL (so refresh keeps /chat/:id).
   useEffect(() => {
-    if (!mounted || !started) return;
+    if (!mounted || !started || !sessionId) return;
+    if (pathname === "/") return; // Jangan redirect paksa jika user berada di home "/"
     const target = `/chat/${sessionId}`;
-    if (pathname !== target) {
+    if (pathname !== target && pathname.startsWith("/chat")) {
       router.replace(target);
     }
   }, [mounted, started, sessionId, pathname, router]);

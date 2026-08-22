@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Paperclip, ArrowUp, X, Loader2, ShieldAlert, FileText, Sparkles, FileCheck2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,6 @@ import { useSession } from "@/context/SessionContext";
 import { useAnalysis } from "@/context/AnalysisContext";
 import { useAuth } from "@/context/AuthContext";
 import { useDocumentUpload } from "@/hooks/useDocumentUpload";
-
 import { useUI } from "@/context/UIContext";
 
 const QUICK = [
@@ -38,6 +38,8 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
   const { user } = useAuth();
   const { uploadFile, progress, busy: extracting, cancel } = useDocumentUpload();
   const { mode } = useUI();
+  const router = useRouter();
+  const pathname = usePathname();
   const [input, setInput] = useState("");
   const [focused, setFocused] = useState(false);
   const fileRef = useRef(null);
@@ -93,13 +95,35 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
   const onFile = async (e) => {
     const f = e.target.files && e.target.files[0];
     e.target.value = "";
-    if (f) await uploadFile(f);
+    if (f) {
+      if (pathname === "/" || pathname === "/chat/new") {
+        router.push(`/chat/${s.sessionId}`);
+      }
+      await uploadFile(f);
+    }
+  };
+
+  const removeFile = (e) => {
+    e?.stopPropagation?.();
+    s.setFile(null);
+    s.setRawText("");
+    s.setExtractInfo(null);
+    s.setMaskedText("");
+    s.setPiiMapping({});
+    s.setPiiEntities([]);
+    s.setRisks([]);
+    s.setRiskScore(null);
+    s.setCitations([]);
+    toast.info("Lampiran dokumen dibatalkan.");
   };
 
   const send = async () => {
     const q = input.trim();
     if (!q || disabled) return;
     setInput("");
+    if (pathname === "/" || pathname === "/chat/new") {
+      router.push(`/chat/${s.sessionId}`);
+    }
     try {
       await run({ mode: "chat", question: q });
     } catch (_) {}
@@ -107,6 +131,9 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
 
   const quick = async (mode) => {
     if (disabled) return;
+    if (pathname === "/" || pathname === "/chat/new") {
+      router.push(`/chat/${s.sessionId}`);
+    }
     try {
       await run({ mode });
     } catch (_) {}
@@ -131,7 +158,8 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
 
   return (
     <div className="w-full">
-      {s.hasDocument && (
+      {/* Quick Action Chips bila ada dokumen tapi belum pernah analisis */}
+      {s.hasDocument && s.messages.length === 0 && (
         <div className="mb-2 flex flex-wrap gap-1.5">
           {QUICK.map((q) => (
             <button
@@ -150,14 +178,26 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
 
       <div className={`rounded-[1.4rem] border bg-card shadow-sm transition-shadow focus-within:shadow-md ${hero ? "p-2" : "p-1.5"}`}>
         {s.hasDocument && s.file && (
-          <div className="mx-1 mb-1 mt-1 flex items-center gap-2 rounded-lg bg-secondary px-2.5 py-1.5 text-xs">
-            <FileCheck2 className="h-3.5 w-3.5 text-primary" />
-            <span className="truncate font-medium">{s.file.name}</span>
-            {s.extractInfo && (
-              <span className="shrink-0 text-muted-foreground">
-                · {s.extractInfo.totalPages} hlm{s.extractInfo.usedOcr ? " · OCR" : ""}
-              </span>
-            )}
+          <div className="mx-1 mb-1 mt-1 flex items-center justify-between gap-2 rounded-lg bg-secondary px-2.5 py-1.5 text-xs">
+            <div className="flex min-w-0 items-center gap-2">
+              <FileCheck2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+              <span className="truncate font-medium">{s.file.name}</span>
+              {s.extractInfo && (
+                <span className="shrink-0 text-muted-foreground">
+                  · {s.extractInfo.totalPages} hlm{s.extractInfo.usedOcr ? " · OCR" : ""}
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={removeFile}
+              data-testid="remove-document-button"
+              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive focus-visible:outline-none"
+              title="Batal lampiran dokumen"
+              aria-label="Batal lampiran dokumen"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
         )}
         <div className="flex items-end gap-1.5">
