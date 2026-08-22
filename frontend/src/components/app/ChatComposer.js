@@ -9,18 +9,27 @@ import { useAnalysis } from "@/context/AnalysisContext";
 import { useAuth } from "@/context/AuthContext";
 import { useDocumentUpload } from "@/hooks/useDocumentUpload";
 
+import { useUI } from "@/context/UIContext";
+
 const QUICK = [
   { mode: "risk", label: "Bedah Risiko", icon: ShieldAlert },
   { mode: "summary", label: "Ringkas Isi", icon: FileText },
   { mode: "key_articles", label: "Jelaskan Pasal Penting", icon: Sparkles },
 ];
 
-// Deliberately DIFFERENT from the example chips in the marquee below.
-const PROMPTS = [
+const PERSONAL_PROMPTS = [
   "Klausul mana yang paling ngerugiin aku?",
   "Ini kontrak kerja apa kemitraan sih?",
   "Denda telat bayarnya wajar nggak?",
   "Jelasin Pasal 1266 KUHPerdata dong",
+];
+
+const BUSINESS_PROMPTS = [
+  "Apakah ada klausul penalti sepihak yang merugikan?",
+  "Audit klausul PKWT ini sesuai UU Cipta Kerja",
+  "Bagaimana batasan liabilitas (liability cap) di kontrak ini?",
+  "Siapa pemegang hak kekayaan intelektual (IP)?",
+  "Cek kepatuhan klausul kerahasiaan & UU PDP",
 ];
 
 export default function ChatComposer({ variant = "docked", seed, onOpenAuth }) {
@@ -28,6 +37,7 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth }) {
   const { run, busy: analyzing } = useAnalysis();
   const { user } = useAuth();
   const { uploadFile, progress, busy: extracting, cancel } = useDocumentUpload();
+  const { mode } = useUI();
   const [input, setInput] = useState("");
   const [focused, setFocused] = useState(false);
   const fileRef = useRef(null);
@@ -35,19 +45,23 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth }) {
   const disabled = analyzing || extracting;
   const hero = variant === "hero";
 
+  const isBisnis = mode === "bisnis";
+  const activePrompts = isBisnis ? BUSINESS_PROMPTS : PERSONAL_PROMPTS;
+
   const BASE_PH = s.hasDocument
-    ? "Tanya apa aja soal dokumen ini…"
-    : "Tanya apa aja soal hukum, kontrak, atau hak kamu…";
+    ? (isBisnis ? "Tanya risiko, denda, atau rujukan pasal dokumen ini…" : "Tanya apa aja soal dokumen ini…")
+    : (isBisnis ? "Tanya risiko hukum bisnis, audit PKWT, atau regulasi…" : "Tanya apa aja soal hukum, kontrak, atau hak kamu…");
+
   const [phIdx, setPhIdx] = useState(-1);
   useEffect(() => {
     if (input) { setPhIdx(-1); return; }
     const id = setInterval(
-      () => setPhIdx((p) => (p >= PROMPTS.length - 1 ? -1 : p + 1)),
+      () => setPhIdx((p) => (p >= activePrompts.length - 1 ? -1 : p + 1)),
       2800
     );
     return () => clearInterval(id);
-  }, [input]);
-  const placeholder = phIdx < 0 ? BASE_PH : PROMPTS[phIdx];
+  }, [input, activePrompts.length]);
+  const placeholder = phIdx < 0 ? BASE_PH : activePrompts[phIdx];
 
   useEffect(() => {
     const ta = taRef.current;

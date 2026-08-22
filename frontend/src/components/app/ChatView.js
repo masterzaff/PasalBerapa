@@ -86,7 +86,7 @@ export default function ChatView({ onOpenAuth }) {
         setSaving(false);
       }
     },
-    [user, s.messages, s.file, convId, convTitle, token, firstUserMsg]
+    [user, s.messages, s.file, convId, convTitle, token, firstUserMsg, setConvId, setConvTitle]
   );
 
   // Autosave: simpan otomatis tiap ada pesan baru (kalau sudah login).
