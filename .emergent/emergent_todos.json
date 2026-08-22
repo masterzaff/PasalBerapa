@@ -1,38 +1,26 @@
 [
   {
-    "content": "Landing: badge chip dokumen di marquee ganti '+PDF'",
+    "content": "Buat masker.py (Presidio + regex Indonesia -> mask_text)",
     "status": "completed"
   },
   {
-    "content": "Landing: hero satu layar penuh; trust & tahapan section below-the-fold (scroll)",
+    "content": "Buat retriever.py (ChromaDB + e5 query) & prompts.py (persona + JSON schema)",
     "status": "completed"
   },
   {
-    "content": "ChatComposer: placeholder animasi transisi (slide) + prompt beda dari marquee",
+    "content": "Buat llm.py (OpenAI-compatible client via httpx)",
     "status": "completed"
   },
   {
-    "content": "ChatComposer: hint 'Percakapan anonim, atau daftar buat simpan' (link auth)",
+    "content": "Refactor app.py: /health, /mask, /analyze, /search sesuai kontrak",
     "status": "completed"
   },
   {
-    "content": "Backend: auth (register/login/me) JWT + bcrypt + conversations CRUD",
+    "content": "Update requirements.txt, Dockerfile (spacy model+embed), ingest.py, .env.example, README",
     "status": "completed"
   },
   {
-    "content": "Frontend: AuthContext + AuthPage full-screen",
-    "status": "completed"
-  },
-  {
-    "content": "TopBar: 'Daftar sekarang' / user + Riwayat + logout",
-    "status": "completed"
-  },
-  {
-    "content": "Frontend: simpan & riwayat percakapan (private)",
-    "status": "completed"
-  },
-  {
-    "content": "Verifikasi flow auth + save (self)",
+    "content": "Verifikasi syntax (py_compile) tanpa install deps berat",
     "status": "completed"
   }
 ]
