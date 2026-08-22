@@ -14,7 +14,6 @@ from starlette.middleware.cors import CORSMiddleware
 
 from database import init_db, close_db
 from auth import auth_router
-from pasalberapa_ref import ref_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -65,4 +64,3 @@ async def api_root():
 
 app.include_router(api_router)
 app.include_router(auth_router)
-app.include_router(ref_router)

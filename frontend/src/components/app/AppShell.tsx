@@ -11,6 +11,7 @@ import Landing from "@/components/app/Landing";
 import ChatView from "@/components/app/ChatView";
 import AuthPage from "@/components/app/AuthPage";
 import HistorySheet from "@/components/app/HistorySheet";
+import PiiReviewModal from "@/components/app/PiiReviewModal";
 
 interface AppShellProps {
   sessionId?: string;
@@ -18,7 +19,7 @@ interface AppShellProps {
 }
 
 export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShellProps = {}) {
-  const { hasDocument, messages, sessionId, loadConversation } = useSession();
+  const { hasDocument, messages, sessionId, loadConversation, showPiiModal, setShowPiiModal } = useSession();
   const { token, loading: authLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -80,6 +81,7 @@ export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShe
       </main>
       {showAuth && <AuthPage onClose={() => setShowAuth(false)} />}
       <HistorySheet open={showHistory} onOpenChange={setShowHistory} />
+      <PiiReviewModal open={showPiiModal} onOpenChange={setShowPiiModal} />
       <Toaster position="top-center" richColors closeButton />
     </div>
   );

@@ -20,7 +20,8 @@ import { tagTypeFromTag, tagTypeLabel } from "@/lib/pii";
 import EmptyState from "@/components/app/EmptyState";
 
 export default function PrivacyVault() {
-  const { piiMapping } = useSession();
+  const s = useSession();
+  const { piiMapping } = s;
   const [reveal, setReveal] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -46,16 +47,29 @@ export default function PrivacyVault() {
             <Badge variant="secondary" className="text-[10px]">{entries.length} item</Badge>
           )}
         </div>
-        {entries.length > 0 && (
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            Data asli
-            <Switch
-              data-testid="privacy-vault-reveal-toggle"
-              checked={reveal}
-              onCheckedChange={onToggle}
-            />
-          </label>
-        )}
+        <div className="flex items-center gap-2.5">
+          {entries.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs gap-1.5 border-primary/30 hover:bg-accent"
+              onClick={() => s.setShowPiiModal(true)}
+            >
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+              Edit Sensor
+            </Button>
+          )}
+          {entries.length > 0 && (
+            <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+              <span>Data asli</span>
+              <Switch
+                data-testid="privacy-vault-reveal-toggle"
+                checked={reveal}
+                onCheckedChange={onToggle}
+              />
+            </label>
+          )}
+        </div>
       </div>
 
       {entries.length === 0 ? (

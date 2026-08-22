@@ -35,6 +35,8 @@ export function SessionProvider({ children }) {
   const [maskedText, setMaskedText] = useState("");
   const [piiMapping, setPiiMapping] = useState({}); // {"<PERSON_1>":"Andi"}
   const [piiEntities, setPiiEntities] = useState([]);
+  const [piiConfirmed, setPiiConfirmed] = useState(false);
+  const [showPiiModal, setShowPiiModal] = useState(false);
 
   // Analysis
   const [messages, setMessages] = useState([]); // {id, role, mode, content, ts}
@@ -126,6 +128,8 @@ export function SessionProvider({ children }) {
     setConvId(null);
     setConvTitle(null);
     setHighlightExcerpt(null);
+    setPiiConfirmed(false);
+    setShowPiiModal(false);
   }, []);
 
   // Load a saved conversation (from history/DB) into the active session.
@@ -138,6 +142,8 @@ export function SessionProvider({ children }) {
     setMaskedText("");
     setPiiMapping({});
     setPiiEntities([]);
+    setPiiConfirmed(false);
+    setShowPiiModal(false);
     setMessages(Array.isArray(msgs) ? msgs : []);
     setRisks([]);
     setRiskScore(null);
@@ -166,6 +172,8 @@ export function SessionProvider({ children }) {
       maskedText, setMaskedText,
       piiMapping, setPiiMapping,
       piiEntities, setPiiEntities,
+      piiConfirmed, setPiiConfirmed,
+      showPiiModal, setShowPiiModal,
       messages, setMessages, addMessage,
       risks, setRisks,
       riskScore, setRiskScore,
@@ -180,6 +188,7 @@ export function SessionProvider({ children }) {
     }),
     [
       sessionId, file, rawText, extractInfo, maskedText, piiMapping, piiEntities,
+      piiConfirmed, showPiiModal,
       messages, risks, riskScore, citations, convId, convTitle, highlightExcerpt, addMessage,
       resetSession, loadConversation, hasDocument, isMasked,
     ]

@@ -1,9 +1,9 @@
-import React, { createContext, useCallback, useContext, useState } from "react";
+import React, { createContext, useCallback, useContext, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSession } from "@/context/SessionContext";
 import { useConnection } from "@/context/ConnectionContext";
 import { maskPII, analyzeDocument, NotConfiguredError } from "@/lib/api";
-import { unmaskText } from "@/lib/pii";
+import { unmaskText, remaskText } from "@/lib/pii";
 
 export const MODE_LABELS = {
   risk: "Bedah Risiko (Red Flags)",
@@ -19,23 +19,29 @@ export function AnalysisProvider({ children }) {
   const conn = useConnection();
   const [busy, setBusy] = useState(false);
   const [busyMode, setBusyMode] = useState(null);
+  const pendingActionRef = useRef(null);
 
   const ensureMasked = useCallback(async () => {
-    if (s.maskedText) return { text: s.maskedText, mapping: s.piiMapping };
+    if (s.maskedText && s.piiMapping && Object.keys(s.piiMapping).length > 0) {
+      return { text: s.maskedText, mapping: s.piiMapping };
+    }
     if (conn.maskConfigured) {
-      const r = await maskPII({ text: s.rawText, sessionId: s.sessionId });
-      s.setMaskedText(r.maskedText);
-      s.setPiiMapping(r.mapping);
-      s.setPiiEntities(r.entities);
-      const n = Object.keys(r.mapping || {}).length;
-      toast.success(`Data sensitif diamankan (${n} item dimasking).`);
-      return { text: r.maskedText, mapping: r.mapping };
+      try {
+        const r = await maskPII({ text: s.rawText, sessionId: s.sessionId });
+        s.setMaskedText(r.maskedText);
+        s.setPiiMapping(r.mapping || {});
+        s.setPiiEntities(r.entities || []);
+        return { text: r.maskedText, mapping: r.mapping || {} };
+      } catch (err) {
+        toast.warning("Gagal scan PII otomatis, menggunakan teks dokumen.");
+        return { text: s.rawText, mapping: {} };
+      }
     }
     return { text: s.rawText, mapping: {} };
   }, [s, conn]);
 
-  const run = useCallback(
-    async ({ mode, question }) => {
+  const executeAnalysis = useCallback(
+    async ({ mode, question, customMaskedText, customMapping }) => {
       if (!conn.analyzeConfigured) {
         toast.error("Endpoint Analisis belum diatur. Buka Settings dulu ya.");
         throw new NotConfiguredError("Analisis");
@@ -44,36 +50,33 @@ export function AnalysisProvider({ children }) {
       setBusyMode(mode);
       const userContent = question || MODE_LABELS[mode] || "Analisis";
       s.addMessage({ role: "user", mode, content: userContent });
+
       try {
-        // Masking only matters when a document is attached. General legal Q&A
-        // (no document) is sent without any masking step.
-        let masked = { text: "", mapping: {} };
-        if (s.hasDocument) {
-          masked = await ensureMasked();
-          if (!conn.maskConfigured) {
-            toast.warning("Endpoint PII belum diatur — teks dikirim tanpa masking.");
-          }
-        }
+        const mapping = customMapping ?? s.piiMapping ?? {};
+        const maskedText = customMaskedText ?? (s.hasDocument ? (s.maskedText || remaskText(s.rawText, mapping)) : "");
+
         const history = s.messages
           .filter((m) => m.role && !m.error)
           .slice(-8)
           .map((m) => ({ role: m.role, content: m.content }));
+
         const data = await analyzeDocument({
-          maskedText: masked.text,
+          maskedText: maskedText || "",
           mode,
           question,
           history,
           sessionId: s.sessionId,
         });
-        const mapping =
-          masked.mapping && Object.keys(masked.mapping).length ? masked.mapping : s.piiMapping;
+
         const replyRaw = data.reply || data.summary || "Selesai.";
         const reply = unmaskText(replyRaw, mapping);
         const citations = (data.citations || []).map((c) => ({
           ...c,
           snippet: unmaskText(c.snippet || "", mapping),
         }));
+
         s.addMessage({ role: "assistant", mode, content: reply, citations });
+
         if (Array.isArray(data.risks)) {
           s.setRisks(
             data.risks.map((r, i) => ({
@@ -87,8 +90,10 @@ export function AnalysisProvider({ children }) {
             }))
           );
         }
+
         if (typeof data.risk_score === "number") s.setRiskScore(data.risk_score);
         if (Array.isArray(data.citations)) s.setCitations(citations);
+
         return data;
       } catch (e) {
         s.addMessage({ role: "assistant", mode, error: true, content: `Waduh, gagal: ${e.message}` });
@@ -99,10 +104,44 @@ export function AnalysisProvider({ children }) {
         setBusyMode(null);
       }
     },
-    [s, conn, ensureMasked]
+    [s, conn]
   );
 
-  return <Ctx.Provider value={{ run, busy, busyMode }}>{children}</Ctx.Provider>;
+  const run = useCallback(
+    async ({ mode, question }) => {
+      // If there is a document and user has not yet reviewed/confirmed the PII redaction
+      if (s.hasDocument && !s.piiConfirmed) {
+        setBusy(true);
+        setBusyMode("masking");
+        try {
+          await ensureMasked();
+        } finally {
+          setBusy(false);
+          setBusyMode(null);
+        }
+        pendingActionRef.current = { mode, question };
+        s.setShowPiiModal(true);
+        return;
+      }
+
+      return executeAnalysis({ mode, question });
+    },
+    [s, ensureMasked, executeAnalysis]
+  );
+
+  const runPending = useCallback(async () => {
+    const pending = pendingActionRef.current;
+    pendingActionRef.current = null;
+    if (pending) {
+      return executeAnalysis(pending);
+    }
+  }, [executeAnalysis]);
+
+  return (
+    <Ctx.Provider value={{ run, runPending, busy, busyMode, ensureMasked }}>
+      {children}
+    </Ctx.Provider>
+  );
 }
 
 export function useAnalysis() {
