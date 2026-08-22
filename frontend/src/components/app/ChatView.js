@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { FileText, Gauge, Lock, Bot, FileCheck2, Scale, Loader2, MoreVertical, Pencil, Trash2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,7 +38,7 @@ export default function ChatView({ onOpenAuth }) {
   const { busy: analyzing, busyMode } = useAnalysis();
   const ui = useUI();
   const { user, token } = useAuth();
-  const navigate = useNavigate();
+  const router = useRouter();
   const feedRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -119,7 +119,7 @@ export default function ChatView({ onOpenAuth }) {
       setConvTitle(null);
       setSaved(false);
       s.resetSession();
-      navigate("/");
+      router.push("/");
     }
   };
 

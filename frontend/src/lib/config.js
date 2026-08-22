@@ -7,19 +7,21 @@
 const LS_KEY = "pasalberapa.endpoints.v1";
 
 const ENV_DEFAULTS = {
-  aiNodeUrl: process.env.REACT_APP_AI_NODE_URL || "",
-  piiEndpoint: process.env.REACT_APP_PII_ENDPOINT || "",
-  analyzeEndpoint: process.env.REACT_APP_ANALYZE_ENDPOINT || "",
+  aiNodeUrl: process.env.NEXT_PUBLIC_AI_NODE_URL || process.env.REACT_APP_AI_NODE_URL || "",
+  piiEndpoint: process.env.NEXT_PUBLIC_PII_ENDPOINT || process.env.REACT_APP_PII_ENDPOINT || "",
+  analyzeEndpoint: process.env.NEXT_PUBLIC_ANALYZE_ENDPOINT || process.env.REACT_APP_ANALYZE_ENDPOINT || "",
   timeoutMs: 60000,
 };
 
 export function getEndpoints() {
   let stored = {};
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (raw) stored = JSON.parse(raw);
-  } catch (e) {
-    stored = {};
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) stored = JSON.parse(raw);
+    } catch (e) {
+      stored = {};
+    }
   }
   return {
     aiNodeUrl: stored.aiNodeUrl ?? ENV_DEFAULTS.aiNodeUrl,
@@ -31,12 +33,20 @@ export function getEndpoints() {
 
 export function saveEndpoints(next) {
   const merged = { ...getEndpoints(), ...next };
-  localStorage.setItem(LS_KEY, JSON.stringify(merged));
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(merged));
+    } catch (_) {}
+  }
   return merged;
 }
 
 export function resetEndpoints() {
-  localStorage.removeItem(LS_KEY);
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.removeItem(LS_KEY);
+    } catch (_) {}
+  }
   return getEndpoints();
 }
 

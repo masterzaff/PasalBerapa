@@ -5,9 +5,23 @@ const LS_TOKEN = "pasalberapa.token";
 const Ctx = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(() => localStorage.getItem(LS_TOKEN) || null);
+  const [token, setToken] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return localStorage.getItem(LS_TOKEN) || null;
+      } catch (_) {}
+    }
+    return null;
+  });
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(Boolean(localStorage.getItem(LS_TOKEN)));
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return Boolean(localStorage.getItem(LS_TOKEN));
+      } catch (_) {}
+    }
+    return false;
+  });
 
   useEffect(() => {
     let alive = true;
@@ -20,7 +34,7 @@ export function AuthProvider({ children }) {
       .then((d) => alive && setUser(d.user))
       .catch(() => {
         if (!alive) return;
-        localStorage.removeItem(LS_TOKEN);
+        try { localStorage.removeItem(LS_TOKEN); } catch (_) {}
         setToken(null);
         setUser(null);
       })
@@ -29,7 +43,7 @@ export function AuthProvider({ children }) {
   }, [token]);
 
   const persist = useCallback((tok, usr) => {
-    localStorage.setItem(LS_TOKEN, tok);
+    try { localStorage.setItem(LS_TOKEN, tok); } catch (_) {}
     setToken(tok);
     setUser(usr);
   }, []);

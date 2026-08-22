@@ -13,6 +13,7 @@ const newSessionId = () =>
   "sess_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
 function loadSnapshot() {
+  if (typeof window === "undefined") return null;
   try {
     const raw = sessionStorage.getItem(SS_KEY);
     if (!raw) return null;

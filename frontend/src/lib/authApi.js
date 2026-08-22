@@ -1,4 +1,4 @@
-const API = (process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "") + "/api";
+const API = (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "") + "/api";
 
 async function req(path, { method = "GET", body, token } = {}) {
   const res = await fetch(API + path, {

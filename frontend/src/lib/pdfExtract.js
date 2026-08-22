@@ -6,7 +6,9 @@ import * as pdfjsLib from "pdfjs-dist";
 import { createWorker } from "tesseract.js";
 
 // Match worker to the exact installed version, served with CORS from unpkg.
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+if (typeof window !== "undefined" && pdfjsLib?.GlobalWorkerOptions) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+}
 
 // Below this many characters, a page is considered "scanned" and eligible for OCR.
 const TEXT_PAGE_MIN_CHARS = 24;

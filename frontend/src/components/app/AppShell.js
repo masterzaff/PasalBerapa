@@ -1,13 +1,10 @@
-import "@/App.css";
+"use client";
+
 import React, { useEffect, useRef, useState } from "react";
-import { BrowserRouter, Routes, Route, useNavigate, useParams, useLocation } from "react-router-dom";
+import { useRouter, usePathname } from "next/navigation";
 import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { SessionProvider, useSession } from "@/context/SessionContext";
-import { AuthProvider, useAuth } from "@/context/AuthContext";
-import { ConnectionProvider } from "@/context/ConnectionContext";
-import { AnalysisProvider } from "@/context/AnalysisContext";
-import { UIProvider } from "@/context/UIContext";
+import { useSession } from "@/context/SessionContext";
+import { useAuth } from "@/context/AuthContext";
 import { authApi } from "@/lib/authApi";
 import TopBar from "@/components/app/TopBar";
 import Landing from "@/components/app/Landing";
@@ -15,12 +12,11 @@ import ChatView from "@/components/app/ChatView";
 import AuthPage from "@/components/app/AuthPage";
 import HistorySheet from "@/components/app/HistorySheet";
 
-function Shell() {
+export default function AppShell({ sessionId: urlId }) {
   const { hasDocument, messages, sessionId, loadConversation } = useSession();
   const { token, loading: authLoading } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { sessionId: urlId } = useParams();
+  const router = useRouter();
+  const pathname = usePathname();
 
   const [showAuth, setShowAuth] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -32,34 +28,31 @@ function Shell() {
   useEffect(() => {
     if (!started) return;
     const target = `/chat/${sessionId}`;
-    if (location.pathname !== target) {
-      navigate(target, { replace: true });
+    if (pathname !== target) {
+      router.replace(target);
     }
-  }, [started, sessionId, location.pathname, navigate]);
+  }, [started, sessionId, pathname, router]);
 
   // 2) If we land on /chat/:id with nothing in memory, try to restore from DB
-  //    (for logged-in users). sessionStorage restore already handles refresh
-  //    within the same tab; this covers fresh loads / other devices.
   const triedRef = useRef(false);
   const [restoring, setRestoring] = useState(false);
   useEffect(() => {
     if (!urlId || started || authLoading || triedRef.current) return;
     triedRef.current = true;
     if (!token) {
-      navigate("/", { replace: true });
+      router.replace("/");
       return;
     }
     setRestoring(true);
     authApi
       .getConversation(urlId, token)
       .then((d) => loadConversation({ id: urlId, messages: d.messages || [], docName: d.doc_name }))
-      .catch(() => navigate("/", { replace: true }))
+      .catch(() => router.replace("/"))
       .finally(() => setRestoring(false));
-  }, [urlId, started, token, authLoading, navigate, loadConversation]);
+  }, [urlId, started, token, authLoading, router, loadConversation]);
 
   const goHome = () => {
-    // kembali ke menu utama (mulai sesi baru) ditangani di TopBar
-    navigate("/");
+    router.push("/");
   };
 
   return (
@@ -76,29 +69,5 @@ function Shell() {
       <HistorySheet open={showHistory} onOpenChange={setShowHistory} />
       <Toaster position="top-center" richColors closeButton />
     </div>
-  );
-}
-
-export default function App() {
-  return (
-    <SessionProvider>
-      <AuthProvider>
-        <ConnectionProvider>
-          <AnalysisProvider>
-            <UIProvider>
-              <TooltipProvider delayDuration={150}>
-                <BrowserRouter>
-                  <Routes>
-                    <Route path="/" element={<Shell />} />
-                    <Route path="/chat/:sessionId" element={<Shell />} />
-                    <Route path="*" element={<Shell />} />
-                  </Routes>
-                </BrowserRouter>
-              </TooltipProvider>
-            </UIProvider>
-          </AnalysisProvider>
-        </ConnectionProvider>
-      </AuthProvider>
-    </SessionProvider>
   );
 }

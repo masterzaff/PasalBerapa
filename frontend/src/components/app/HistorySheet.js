@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 import { Loader2, Trash2, MessageSquareText, Clock } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { useSession } from "@/context/SessionContext";
 export default function HistorySheet({ open, onOpenChange }) {
   const { token } = useAuth();
   const s = useSession();
-  const navigate = useNavigate();
+  const router = useRouter();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -37,7 +37,7 @@ export default function HistorySheet({ open, onOpenChange }) {
       const d = await authApi.getConversation(id, token);
       s.loadConversation({ id, messages: d.messages || [], docName: d.doc_name });
       onOpenChange(false);
-      navigate(`/chat/${id}`);
+      router.push(`/chat/${id}`);
       toast.success("Percakapan dibuka.");
     } catch (e) {
       toast.error(e.message || "Gagal buka percakapan.");

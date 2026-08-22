@@ -1,5 +1,5 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 import { Gavel, RotateCcw, History, LogOut, UserPlus, Building2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -11,11 +11,11 @@ export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome }) {
   const { resetSession, hasDocument } = useSession();
   const { user, logout } = useAuth();
   const { mode, setMode } = useUI();
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const newSession = () => {
     resetSession();
-    navigate("/");
+    router.push("/");
   };
 
   return (

@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 const Ctx = createContext(null);
 const LS_MODE_KEY = "pasalberapa.audience_mode";
@@ -6,18 +6,21 @@ const LS_MODE_KEY = "pasalberapa.audience_mode";
 export function UIProvider({ children }) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelTab, setPanelTab] = useState("doc"); // doc | risk | vault
-  const [mode, setModeState] = useState(() => {
+  const [mode, setModeState] = useState("bisnis");
+
+  useEffect(() => {
     try {
-      return localStorage.getItem(LS_MODE_KEY) || "bisnis";
-    } catch (_) {
-      return "bisnis";
-    }
-  });
+      const stored = localStorage.getItem(LS_MODE_KEY);
+      if (stored) setModeState(stored);
+    } catch (_) {}
+  }, []);
 
   const setMode = useCallback((newMode) => {
     setModeState(newMode);
     try {
-      localStorage.setItem(LS_MODE_KEY, newMode);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(LS_MODE_KEY, newMode);
+      }
     } catch (_) {}
   }, []);
 
