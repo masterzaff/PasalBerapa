@@ -5,6 +5,7 @@ import {
   Briefcase, Home, FileLock2, ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Separator } from "@/components/ui/separator";
 import ChatComposer from "@/components/app/ChatComposer";
 import { useDocumentUpload } from "@/hooks/useDocumentUpload";
 
@@ -115,11 +116,7 @@ export default function Landing() {
               </motion.span>
             ))}
 
-            <span className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
-              <Sparkles className="h-3.5 w-3.5 text-primary" /> Asisten hukum yang ngomong manusiawi
-            </span>
-
-            <h1 className="mt-5 font-display text-[2.7rem] font-semibold leading-[1.03] tracking-tight sm:text-6xl">
+            <h1 className="mt-2 font-display text-[2.7rem] font-semibold leading-[1.03] tracking-tight sm:text-6xl">
               Urusan hukum,
               <br />
               dijelasin kayak{" "}
@@ -152,22 +149,21 @@ export default function Landing() {
               </div>
             )}
 
-            {/* Question chips */}
-            <div className="mt-5">
-              <span className="text-xs text-muted-foreground">Coba tanya:</span>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {QUESTIONS.map((item, i) => (
-                  <button
-                    key={item.slug}
-                    data-testid={`example-question-${item.slug}-chip`}
-                    onClick={() => setSeed({ text: item.q, id: Date.now() })}
-                    className={`rounded-full border bg-card px-3 py-1.5 text-xs text-foreground transition-colors hover:border-primary hover:bg-accent sm:text-sm ${
-                      i % 2 ? "lg:ml-3" : ""
-                    }`}
-                  >
-                    “{item.q}”
-                  </button>
-                ))}
+            {/* Question chips — marquee berjalan */}
+            <div className="marquee-pause mt-5">
+              <div className="marquee-mask overflow-hidden">
+                <div className="animate-marquee flex w-max gap-2 py-1">
+                  {[...QUESTIONS, ...QUESTIONS].map((item, i) => (
+                    <button
+                      key={`${item.slug}-${i}`}
+                      data-testid={`example-question-${item.slug}-chip`}
+                      onClick={() => setSeed({ text: item.q, id: Date.now() })}
+                      className="shrink-0 rounded-full border bg-card px-3 py-1.5 text-xs text-foreground transition-colors hover:border-primary hover:bg-accent sm:text-sm"
+                    >
+                      “{item.q}”
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </motion.div>
@@ -176,7 +172,7 @@ export default function Landing() {
           <motion.div
             initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.15, ease: [0.2, 0.8, 0.2, 1] }}
-            className="lg:col-span-5"
+            className="lg:col-span-5 lg:mt-12"
           >
             <div className="rounded-2xl border bg-card/70 p-4 backdrop-blur-sm">
               <p className="mb-3 font-mono-plex text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -198,12 +194,13 @@ export default function Landing() {
                   </div>
                 ))}
               </div>
-            </div>
 
-            <p className="mb-3 mt-6 font-mono-plex text-[11px] uppercase tracking-wide text-muted-foreground">
-              Atau bedah dokumen contoh
-            </p>
-            <div className="grid gap-3">
+              <Separator className="my-4" />
+
+              <p className="mb-3 font-mono-plex text-[11px] uppercase tracking-wide text-muted-foreground">
+                Atau bedah dokumen contoh
+              </p>
+              <div className="grid gap-3">
               {EXAMPLES.map((ex) => (
                 <button
                   key={ex.file}
@@ -224,6 +221,7 @@ export default function Landing() {
                   <ArrowRight className="ml-auto mt-3 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                 </button>
               ))}
+              </div>
             </div>
           </motion.div>
         </div>
@@ -232,7 +230,7 @@ export default function Landing() {
         <motion.div
           initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.25 }}
-          className="mt-10 rounded-2xl border bg-card/60 p-4 backdrop-blur-sm sm:p-6"
+          className="mt-16 rounded-2xl border bg-card/60 p-4 backdrop-blur-sm sm:p-6"
         >
           <div className="grid gap-5 sm:grid-cols-3">
             {[

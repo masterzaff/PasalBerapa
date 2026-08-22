@@ -23,6 +23,30 @@ export default function ChatComposer({ variant = "docked", seed }) {
   const disabled = analyzing || extracting;
   const hero = variant === "hero";
 
+  const BASE_PH = s.hasDocument
+    ? "Tanya apa aja soal dokumen ini…"
+    : "Tanya apa aja soal hukum, kontrak, atau hak kamu…";
+  const PROMPTS = [
+    "Ada denda tersembunyi nggak?",
+    "Aku boleh resign kapan aja?",
+    "Kontrak ini bisa diputus sepihak?",
+    "Deposit sewa boleh hangus?",
+  ];
+  const [phIdx, setPhIdx] = useState(-1);
+  useEffect(() => {
+    if (input) {
+      setPhIdx(-1);
+      return;
+    }
+    const id = setInterval(
+      () => setPhIdx((p) => (p >= PROMPTS.length - 1 ? -1 : p + 1)),
+      2800
+    );
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input, s.hasDocument]);
+  const placeholder = phIdx < 0 ? BASE_PH : PROMPTS[phIdx];
+
   useEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
@@ -139,11 +163,7 @@ export default function ChatComposer({ variant = "docked", seed }) {
               }
             }}
             rows={1}
-            placeholder={
-              s.hasDocument
-                ? "Tanya apa aja soal dokumen ini…"
-                : "Tanya apa aja soal hukum, kontrak, atau hak kamu…"
-            }
+            placeholder={placeholder}
             className={`max-h-[160px] min-h-[40px] flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-6 outline-none placeholder:text-muted-foreground ${
               hero ? "md:text-base" : ""
             }`}
@@ -163,7 +183,7 @@ export default function ChatComposer({ variant = "docked", seed }) {
 
       <div className="mt-2 px-1 text-center text-[11px] text-muted-foreground">
         {hero ? (
-          <span>Nggak perlu file buat nanya · lampirin PDF cuma kalau mau bedah dokumen</span>
+          <span>PDF opsional — bisa langsung nanya</span>
         ) : (
           <span>Jawaban bisa keliru — tetap cek dokumen aslinya ya.</span>
         )}

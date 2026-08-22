@@ -166,6 +166,22 @@ code {
     background: transparent;
 }
 
+/* Running marquee for example question chips */
+@keyframes marquee-x {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+}
+.animate-marquee {
+    animation: marquee-x 26s linear infinite;
+}
+.marquee-pause:hover .animate-marquee {
+    animation-play-state: paused;
+}
+.marquee-mask {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+    mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+}
+
 @media (prefers-reduced-motion: reduce) {
     * {
         animation-duration: 0.001ms !important;
