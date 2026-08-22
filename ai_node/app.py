@@ -75,6 +75,7 @@ async def health():
         "pii_engine": masker.engine_name(),
         "llm": llm.status(),
         "pasal_id_configured": pasal_client.is_configured(),
+        "pasal_id_tokens": len(pasal_client.PASAL_API_TOKENS),
     }
 
 

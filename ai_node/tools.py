@@ -82,7 +82,7 @@ def execute_search_law(query: str, regulation: Optional[str] = None, top_k: int 
     results = pasal_client.search(query, regulation=regulation, top_k=top_k)
     if not results:
         if not pasal_client.is_configured():
-            msg = "Pencarian pasal live belum aktif (PASAL_API_TOKEN belum diset di server). Gunakan penalaran hukum umum."
+            msg = "Pencarian pasal live belum aktif (PASAL_API_TOKENS belum diset di server). Gunakan penalaran hukum umum."
         else:
             msg = f"Tidak ditemukan pasal spesifik untuk query '{query}'. Gunakan penalaran hukum umum atau coba kata kunci lain."
         return {"found": False, "message": msg}

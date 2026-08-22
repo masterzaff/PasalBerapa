@@ -57,7 +57,7 @@ services:
       LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
       TOP_K_DEFAULT: ${TOP_K_DEFAULT:-6}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
-      PASAL_API_TOKEN: ${PASAL_API_TOKEN:-}
+      PASAL_API_TOKENS: ${PASAL_API_TOKENS:-}
     volumes:
       - ai_node_data:/data
     extra_hosts:
