@@ -32,7 +32,7 @@ const BUSINESS_PROMPTS = [
   "Cek kepatuhan klausul kerahasiaan & UU PDP",
 ];
 
-export default function ChatComposer({ variant = "docked", seed, onOpenAuth }) {
+export default function ChatComposer({ variant = "docked", seed, onOpenAuth, autoFocus = false }) {
   const s = useSession();
   const { run, busy: analyzing } = useAnalysis();
   const { user } = useAuth();
@@ -69,6 +69,17 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth }) {
     ta.style.height = "auto";
     ta.style.height = Math.min(ta.scrollHeight, 160) + "px";
   }, [input]);
+
+  useEffect(() => {
+    if (!autoFocus) return;
+    // Auto-focus input on mount only when enabled (e.g. on chat page)
+    const timer = setTimeout(() => {
+      if (taRef.current) {
+        taRef.current.focus();
+      }
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [autoFocus]);
 
   useEffect(() => {
     if (seed && seed.text) {

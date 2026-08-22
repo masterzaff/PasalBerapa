@@ -7,9 +7,9 @@
 const LS_KEY = "pasalberapa.endpoints.v1";
 
 const ENV_DEFAULTS = {
-  aiNodeUrl: process.env.NEXT_PUBLIC_AI_NODE_URL || process.env.REACT_APP_AI_NODE_URL || "",
-  piiEndpoint: process.env.NEXT_PUBLIC_PII_ENDPOINT || process.env.REACT_APP_PII_ENDPOINT || "",
-  analyzeEndpoint: process.env.NEXT_PUBLIC_ANALYZE_ENDPOINT || process.env.REACT_APP_ANALYZE_ENDPOINT || "",
+  aiNodeUrl: process.env.NEXT_PUBLIC_AI_NODE_URL || process.env.REACT_APP_AI_NODE_URL || "http://localhost:8000/api",
+  piiEndpoint: process.env.NEXT_PUBLIC_PII_ENDPOINT || process.env.REACT_APP_PII_ENDPOINT || "http://localhost:8000/api/mask",
+  analyzeEndpoint: process.env.NEXT_PUBLIC_ANALYZE_ENDPOINT || process.env.REACT_APP_ANALYZE_ENDPOINT || "http://localhost:8000/api/analyze",
   timeoutMs: 60000,
 };
 

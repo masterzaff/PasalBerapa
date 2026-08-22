@@ -14,34 +14,42 @@ import HistorySheet from "@/components/app/HistorySheet";
 
 interface AppShellProps {
   sessionId?: string;
+  isNewChat?: boolean;
 }
 
-export default function AppShell({ sessionId: urlId }: AppShellProps = {}) {
+export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShellProps = {}) {
   const { hasDocument, messages, sessionId, loadConversation } = useSession();
   const { token, loading: authLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
+  const [mounted, setMounted] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const started = hasDocument || messages.length > 0;
+  const isChat = Boolean(isNewChat || urlId || (mounted && (started || restoring)));
   const openAuth = () => setShowAuth(true);
   const openHistory = () => setShowHistory(true);
 
   // 1) Reflect the active session in the URL (so refresh keeps /chat/:id).
   useEffect(() => {
-    if (!started) return;
+    if (!mounted || !started) return;
     const target = `/chat/${sessionId}`;
     if (pathname !== target) {
       router.replace(target);
     }
-  }, [started, sessionId, pathname, router]);
+  }, [mounted, started, sessionId, pathname, router]);
 
   // 2) If we land on /chat/:id with nothing in memory, try to restore from DB
   const triedRef = useRef(false);
   const [restoring, setRestoring] = useState(false);
   useEffect(() => {
-    if (!urlId || started || authLoading || triedRef.current) return;
+    if (!urlId || urlId === "new" || isNewChat || started || authLoading || triedRef.current) return;
     triedRef.current = true;
     if (!token) {
       router.replace("/");
@@ -63,7 +71,7 @@ export default function AppShell({ sessionId: urlId }: AppShellProps = {}) {
     <div className="App flex min-h-screen flex-col bg-background text-foreground paper-grain">
       <TopBar onOpenAuth={openAuth} onOpenHistory={openHistory} onGoHome={goHome} />
       <main className="flex min-h-0 flex-1 flex-col">
-        {started || restoring ? (
+        {isChat ? (
           <ChatView onOpenAuth={openAuth} onOpenHistory={openHistory} />
         ) : (
           <Landing onOpenAuth={openAuth} />

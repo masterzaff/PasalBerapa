@@ -24,37 +24,60 @@ function loadSnapshot() {
 }
 
 export function SessionProvider({ children }) {
-  const snap = loadSnapshot();
-
-  const [sessionId, setSessionId] = useState(() => snap?.sessionId || newSessionId());
+  const [sessionId, setSessionId] = useState("");
 
   // Document / extraction
-  const [file, setFile] = useState(snap?.file || null);
-  const [rawText, setRawText] = useState(snap?.rawText || "");
-  const [extractInfo, setExtractInfo] = useState(snap?.extractInfo || null); // {totalPages, usedOcr, pages}
+  const [file, setFile] = useState(null);
+  const [rawText, setRawText] = useState("");
+  const [extractInfo, setExtractInfo] = useState(null); // {totalPages, usedOcr, pages}
 
   // PII masking (from user endpoint)
-  const [maskedText, setMaskedText] = useState(snap?.maskedText || "");
-  const [piiMapping, setPiiMapping] = useState(snap?.piiMapping || {}); // {"<PERSON_1>":"Andi"}
-  const [piiEntities, setPiiEntities] = useState(snap?.piiEntities || []);
+  const [maskedText, setMaskedText] = useState("");
+  const [piiMapping, setPiiMapping] = useState({}); // {"<PERSON_1>":"Andi"}
+  const [piiEntities, setPiiEntities] = useState([]);
 
   // Analysis
-  const [messages, setMessages] = useState(snap?.messages || []); // {id, role, mode, content, ts}
-  const [risks, setRisks] = useState(snap?.risks || []);
-  const [riskScore, setRiskScore] = useState(snap?.riskScore ?? null);
-  const [citations, setCitations] = useState(snap?.citations || []);
+  const [messages, setMessages] = useState([]); // {id, role, mode, content, ts}
+  const [risks, setRisks] = useState([]);
+  const [riskScore, setRiskScore] = useState(null);
+  const [citations, setCitations] = useState([]);
 
   // Link ke percakapan tersimpan di DB (biar autosave meng-UPDATE, bukan bikin
   // duplikat setelah refresh). null = sesi baru yang belum pernah disimpan.
-  const [convId, setConvId] = useState(snap?.convId || null);
-  const [convTitle, setConvTitle] = useState(snap?.convTitle || null);
+  const [convId, setConvId] = useState(null);
+  const [convTitle, setConvTitle] = useState(null);
 
   // UI (not persisted)
   const [highlightExcerpt, setHighlightExcerpt] = useState(null);
 
+  // Hydrate from sessionStorage once mounted on client
+  const [initialized, setInitialized] = useState(false);
+  useEffect(() => {
+    const snap = loadSnapshot();
+    if (snap) {
+      if (snap.sessionId) setSessionId(snap.sessionId);
+      if (snap.file) setFile(snap.file);
+      if (snap.rawText) setRawText(snap.rawText);
+      if (snap.extractInfo) setExtractInfo(snap.extractInfo);
+      if (snap.maskedText) setMaskedText(snap.maskedText);
+      if (snap.piiMapping) setPiiMapping(snap.piiMapping);
+      if (snap.piiEntities) setPiiEntities(snap.piiEntities);
+      if (snap.messages) setMessages(snap.messages);
+      if (snap.risks) setRisks(snap.risks);
+      if (snap.riskScore !== undefined) setRiskScore(snap.riskScore);
+      if (snap.citations) setCitations(snap.citations);
+      if (snap.convId) setConvId(snap.convId);
+      if (snap.convTitle) setConvTitle(snap.convTitle);
+    } else {
+      setSessionId(newSessionId());
+    }
+    setInitialized(true);
+  }, []);
+
   // --- Persist snapshot on any meaningful change ---
   const persistRef = useRef(false);
   useEffect(() => {
+    if (!initialized) return;
     const hasContent = messages.length > 0 || (rawText && rawText.trim());
     try {
       if (hasContent) {

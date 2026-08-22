@@ -123,102 +123,131 @@ export default function ChatView({ onOpenAuth }) {
     }
   };
 
+  const isFreshNewChat = !s.hasDocument && s.messages.length === 0 && !analyzing;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="sticky top-0 z-30 border-b bg-background/70 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-2 px-4 py-2">
-          <div className="flex min-w-0 items-center gap-2 text-sm">
-            {s.hasDocument ? (
-              <FileCheck2 className="h-4 w-4 shrink-0 text-primary" />
-            ) : (
-              <Scale className="h-4 w-4 shrink-0 text-primary" />
-            )}
-            <span className="truncate font-medium" data-testid="conversation-title">{headerTitle}</span>
-            {s.hasDocument && s.extractInfo && (
-              <Badge variant="secondary" className="shrink-0 text-[10px]">
-                {s.extractInfo.totalPages} hlm{s.extractInfo.usedOcr ? " · OCR" : ""}
-              </Badge>
-            )}
-            {user && s.messages.length > 0 && (
-              <span className="hidden shrink-0 items-center gap-1 text-[11px] text-muted-foreground sm:inline-flex" data-testid="autosave-indicator">
-                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : saved ? <Check className="h-3 w-3 text-[hsl(var(--risk-safe))]" /> : null}
-                {saving ? "Menyimpan…" : saved ? "Tersimpan" : ""}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  data-testid="manage-conversation-button"
-                  disabled={s.messages.length === 0}
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem onClick={rename} data-testid="menu-rename">
-                  <Pencil className="mr-2 h-4 w-4" /> Ganti judul
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={remove} data-testid="menu-delete" className="text-destructive focus:text-destructive">
-                  <Trash2 className="mr-2 h-4 w-4" /> Hapus
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {s.hasDocument && (
-              <>
-                <PanelButton onClick={() => ui.openPanel("doc")} icon={FileText} label="Dokumen" testId="open-doc-panel-button" />
-                <PanelButton onClick={() => ui.openPanel("risk")} icon={Gauge} label="Risiko" count={s.risks.length} testId="open-risk-panel-button" />
-                <PanelButton onClick={() => ui.openPanel("vault")} icon={Lock} label="Vault" count={Object.keys(s.piiMapping || {}).length} testId="open-vault-panel-button" />
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div ref={feedRef} className="scroll-slim min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
-          {s.hasDocument && s.messages.length === 0 && !analyzing && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2.5">
-              <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
-                <Bot className="h-4 w-4" />
-              </div>
-              <div className="max-w-[85%] rounded-2xl border bg-accent px-4 py-3 text-sm leading-6">
-                Dokumen <span className="font-medium">{s.file?.name}</span> udah kebaca
-                {s.extractInfo ? ` (${s.extractInfo.totalPages} halaman)` : ""}. Mau mulai dari mana?
-                Klik chip di bawah — <b>Bedah Risiko</b>, <b>Ringkas Isi</b>, atau <b>Jelaskan Pasal Penting</b> — atau ketik pertanyaanmu.
-              </div>
-            </motion.div>
-          )}
-
-          {s.messages.map((m) => (
-            <Message key={m.id} m={m} />
-          ))}
-
-          {analyzing && (
-            <div className="flex gap-2.5">
-              <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
-                <Bot className="h-4 w-4" />
-              </div>
-              <div>
-                <div className="mb-0.5 text-[11px] text-muted-foreground">
-                  PasalBerapa? {busyMode ? `· ${busyMode === "key_articles" ? "Jelaskan Pasal" : busyMode}` : ""}
-                </div>
-                <TypingBubble />
-              </div>
+      {!isFreshNewChat && (
+        <div className="sticky top-0 z-30 border-b bg-background/70 backdrop-blur">
+          <div className="mx-auto flex max-w-3xl items-center justify-between gap-2 px-4 py-2">
+            <div className="flex min-w-0 items-center gap-2 text-sm">
+              {s.hasDocument ? (
+                <FileCheck2 className="h-4 w-4 shrink-0 text-primary" />
+              ) : (
+                <Scale className="h-4 w-4 shrink-0 text-primary" />
+              )}
+              <span className="truncate font-medium" data-testid="conversation-title">{headerTitle}</span>
+              {s.hasDocument && s.extractInfo && (
+                <Badge variant="secondary" className="shrink-0 text-[10px]">
+                  {s.extractInfo.totalPages} hlm{s.extractInfo.usedOcr ? " · OCR" : ""}
+                </Badge>
+              )}
+              {user && s.messages.length > 0 && (
+                <span className="hidden shrink-0 items-center gap-1 text-[11px] text-muted-foreground sm:inline-flex" data-testid="autosave-indicator">
+                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : saved ? <Check className="h-3 w-3 text-[hsl(var(--risk-safe))]" /> : null}
+                  {saving ? "Menyimpan…" : saved ? "Tersimpan" : ""}
+                </span>
+              )}
             </div>
-          )}
+            <div className="flex items-center gap-1.5">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    data-testid="manage-conversation-button"
+                    disabled={s.messages.length === 0}
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem onClick={rename} data-testid="menu-rename">
+                    <Pencil className="mr-2 h-4 w-4" /> Ganti judul
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={remove} data-testid="menu-delete" className="text-destructive focus:text-destructive">
+                    <Trash2 className="mr-2 h-4 w-4" /> Hapus
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {s.hasDocument && (
+                <>
+                  <PanelButton onClick={() => ui.openPanel("doc")} icon={FileText} label="Dokumen" testId="open-doc-panel-button" />
+                  <PanelButton onClick={() => ui.openPanel("risk")} icon={Gauge} label="Risiko" count={s.risks.length} testId="open-risk-panel-button" />
+                  <PanelButton onClick={() => ui.openPanel("vault")} icon={Lock} label="Vault" count={Object.keys(s.piiMapping || {}).length} testId="open-vault-panel-button" />
+                </>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="sticky bottom-0 z-30 border-t bg-background/80 backdrop-blur">
-        <div className="mx-auto max-w-3xl px-4 py-3">
-          <ChatComposer variant="docked" onOpenAuth={onOpenAuth} />
+      {/* Main Content Area */}
+      {isFreshNewChat ? (
+        <div className="flex flex-1 flex-col items-center justify-start pt-12 sm:pt-16 md:pt-20 pb-12 px-4">
+          <div className="w-full max-w-2xl text-center space-y-6">
+            <div className="space-y-2">
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary mb-2 shadow-sm">
+                <Scale className="h-6 w-6" />
+              </div>
+              <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl text-foreground">
+                Mulai Percakapan Baru
+              </h1>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                Tanyakan pasal hukum, upload draf kontrak untuk di-audit, atau konsultasikan klausul bisnis Anda.
+              </p>
+            </div>
+
+            <div className="w-full text-left">
+              <ChatComposer variant="hero" autoFocus onOpenAuth={onOpenAuth} />
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        <>
+          <div ref={feedRef} className="scroll-slim min-h-0 flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
+              {s.hasDocument && s.messages.length === 0 && !analyzing && (
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2.5">
+                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
+                    <Bot className="h-4 w-4" />
+                  </div>
+                  <div className="max-w-[85%] rounded-2xl border bg-accent px-4 py-3 text-sm leading-6">
+                    Dokumen <span className="font-medium">{s.file?.name}</span> udah kebaca
+                    {s.extractInfo ? ` (${s.extractInfo.totalPages} halaman)` : ""}. Mau mulai dari mana?
+                    Klik chip di bawah — <b>Bedah Risiko</b>, <b>Ringkas Isi</b>, atau <b>Jelaskan Pasal Penting</b> — atau ketik pertanyaanmu.
+                  </div>
+                </motion.div>
+              )}
+
+              {s.messages.map((m) => (
+                <Message key={m.id} m={m} />
+              ))}
+
+              {analyzing && (
+                <div className="flex gap-2.5">
+                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
+                    <Bot className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="mb-0.5 text-[11px] text-muted-foreground">
+                      PasalBerapa? {busyMode ? `· ${busyMode === "key_articles" ? "Jelaskan Pasal" : busyMode}` : ""}
+                    </div>
+                    <TypingBubble />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="sticky bottom-0 z-30 border-t bg-background/80 backdrop-blur">
+            <div className="mx-auto max-w-3xl px-4 py-3">
+              <ChatComposer variant="docked" autoFocus onOpenAuth={onOpenAuth} />
+            </div>
+          </div>
+        </>
+      )}
 
       <Sheet open={ui.panelOpen} onOpenChange={ui.setPanelOpen}>
         <SheetContent side="right" className="flex w-full flex-col p-0 sm:max-w-xl md:max-w-2xl">

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Loader2, Trash2, MessageSquareText, Clock } from "lucide-react";
+import { useRouter, usePathname } from "next/navigation";
+import { Loader2, Trash2, MessageSquareText, Clock, SquarePen } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ export default function HistorySheet({ open, onOpenChange }) {
   const { token } = useAuth();
   const s = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -31,6 +32,12 @@ export default function HistorySheet({ open, onOpenChange }) {
   useEffect(() => {
     if (open) load();
   }, [open, load]);
+
+  const startNewChat = () => {
+    s.resetSession();
+    onOpenChange(false);
+    router.push("/chat/new");
+  };
 
   const openConv = async (id) => {
     try {
@@ -63,6 +70,17 @@ export default function HistorySheet({ open, onOpenChange }) {
           <SheetDescription>Percakapan yang kamu simpan — private, cuma kamu yang bisa lihat.</SheetDescription>
         </SheetHeader>
 
+        <div className="mt-4">
+          <Button
+            data-testid="history-new-chat-button"
+            onClick={startNewChat}
+            className="w-full justify-center gap-2 shadow-sm font-medium"
+          >
+            <SquarePen className="h-4 w-4" />
+            <span>Percakapan Baru</span>
+          </Button>
+        </div>
+
         <div className="scroll-slim mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
           {loading ? (
             <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
@@ -74,31 +92,46 @@ export default function HistorySheet({ open, onOpenChange }) {
               <p className="text-sm text-muted-foreground">Belum ada percakapan tersimpan.</p>
             </div>
           ) : (
-            items.map((it) => (
-              <button
-                key={it.id}
-                data-testid="history-item"
-                onClick={() => openConv(it.id)}
-                className="group flex w-full items-center gap-3 rounded-xl border bg-card p-3 text-left transition-colors hover:border-primary/40 hover:bg-accent"
-              >
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent text-primary">
-                  <MessageSquareText className="h-4 w-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{it.title}</p>
-                  <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                    <Clock className="h-3 w-3" />
-                    {it.count} pesan{it.doc_name ? ` · ${it.doc_name}` : ""}
-                  </p>
-                </div>
-                <span
-                  onClick={(e) => remove(it.id, e)}
-                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground opacity-0 transition-opacity hover:bg-[hsl(var(--risk-high-bg))] hover:text-destructive group-hover:opacity-100"
+            items.map((it) => {
+              const isActive = it.id === s.convId || it.id === s.sessionId || pathname === `/chat/${it.id}`;
+              return (
+                <button
+                  key={it.id}
+                  data-testid="history-item"
+                  onClick={() => {
+                    if (!isActive) {
+                      openConv(it.id);
+                    } else {
+                      onOpenChange(false);
+                    }
+                  }}
+                  className={`group flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-all ${
+                    isActive
+                      ? "border-primary/60 bg-primary/10 text-foreground ring-1 ring-primary/30 shadow-sm cursor-default"
+                      : "border-border bg-card hover:border-primary/40 hover:bg-accent cursor-pointer"
+                  }`}
+                  aria-current={isActive ? "page" : undefined}
                 >
-                  <Trash2 className="h-4 w-4" />
-                </span>
-              </button>
-            ))
+                  <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${isActive ? "bg-primary text-primary-foreground" : "bg-accent text-primary"}`}>
+                    <MessageSquareText className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{it.title}</p>
+                    <p className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
+                      <Clock className="h-3 w-3" />
+                      {it.count} pesan{it.doc_name ? ` · ${it.doc_name}` : ""}
+                    </p>
+                  </div>
+                  <span
+                    onClick={(e) => remove(it.id, e)}
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground opacity-0 transition-opacity hover:bg-[hsl(var(--risk-high-bg))] hover:text-destructive group-hover:opacity-100 cursor-pointer"
+                    title="Hapus percakapan"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </span>
+                </button>
+              );
+            })
           )}
         </div>
       </SheetContent>
