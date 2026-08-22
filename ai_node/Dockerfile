@@ -16,10 +16,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
 WORKDIR /app
 COPY requirements.txt .
 
-# Torch CPU-only via uv (multi-threaded download with automatic retries) lalu requirements & spaCy NER model
-RUN uv pip install torch --index-url https://download.pytorch.org/whl/cpu \
- && uv pip install -r requirements.txt \
- && uv pip install https://github.com/explosion/spacy-models/releases/download/xx_ent_wiki_sm-3.8.0/xx_ent_wiki_sm-3.8.0-py3-none-any.whl
+# 1) Torch CPU-only via uv in its own layer (cached permanently)
+RUN uv pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# 2) Requirements via uv (cached)
+RUN uv pip install -r requirements.txt
+
+# 3) SpaCy NER model download
+RUN python -m spacy download xx_ent_wiki_sm || uv pip install https://github.com/explosion/spacy-models/releases/download/xx_ent_wiki_sm-3.8.0/xx_ent_wiki_sm-3.8.0-py3-none-any.whl
 
 COPY app.py masker.py retriever.py prompts.py llm.py ingest.py entrypoint.sh ./
 RUN chmod +x entrypoint.sh

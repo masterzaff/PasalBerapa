@@ -37,6 +37,7 @@ class LoginReq(BaseModel):
 
 
 class ConversationIn(BaseModel):
+    id: Optional[str] = None
     title: Optional[str] = None
     messages: List[Dict[str, Any]] = []
     doc_name: Optional[str] = None
@@ -81,21 +82,23 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db)
 ) -> User:
     if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail="Butuh login dulu.")
+        raise HTTPException(status_code=401, detail="Sesi login diperlukan.")
     token = authorization.split(" ", 1)[1].strip()
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Sesi login habis, silakan masuk lagi.")
+        raise HTTPException(status_code=401, detail="Sesi login telah kedaluwarsa, silakan masuk kembali.")
     except Exception:
-        raise HTTPException(status_code=401, detail="Token nggak valid.")
+        raise HTTPException(status_code=401, detail="Token otentikasi tidak valid.")
 
     user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Data pengguna tidak valid.")
     stmt = select(User).where(User.id == user_id)
     res = await db.execute(stmt)
     u = res.scalar_one_or_none()
     if not u:
-        raise HTTPException(status_code=401, detail="User nggak ditemukan.")
+        raise HTTPException(status_code=401, detail="Pengguna tidak ditemukan.")
     return u
 
 
@@ -106,19 +109,23 @@ async def register(req: RegisterReq, db: AsyncSession = Depends(get_db)):
     stmt = select(User).where(User.email == email)
     res = await db.execute(stmt)
     if res.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="Email ini udah kedaftar. Coba login.")
+        raise HTTPException(status_code=409, detail="Email ini sudah terdaftar. Silakan login.")
     
-    user = User(
-        id=str(uuid.uuid4()),
-        email=email,
-        name=req.name,
-        password_hash=_hash_pw(req.password),
-        created_at=datetime.now(timezone.utc)
-    )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    return {"token": _make_token(user.id), "user": _public_user(user)}
+    try:
+        user = User(
+            id=str(uuid.uuid4()),
+            email=email,
+            name=req.name.strip() if req.name else None,
+            password_hash=_hash_pw(req.password),
+            created_at=datetime.now(timezone.utc)
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        return {"token": _make_token(user.id), "user": _public_user(user)}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Gagal mendaftarkan akun: {str(e)}")
 
 
 @auth_router.post("/auth/login")
@@ -128,7 +135,7 @@ async def login(req: LoginReq, db: AsyncSession = Depends(get_db)):
     res = await db.execute(stmt)
     u = res.scalar_one_or_none()
     if not u or not _verify_pw(req.password, u.password_hash):
-        raise HTTPException(status_code=401, detail="Email atau password salah.")
+        raise HTTPException(status_code=401, detail="Email atau kata sandi tidak sesuai.")
     return {"token": _make_token(u.id), "user": _public_user(u)}
 
 
@@ -161,30 +168,58 @@ async def list_conversations(
 
 
 @auth_router.post("/conversations")
-async def save_conversation(
+async def save_or_upsert_conversation(
     body: ConversationIn,
     current: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     now = datetime.now(timezone.utc)
-    title = body.title or (body.doc_name or "Percakapan")
-    conv = Conversation(
-        id=str(uuid.uuid4()),
-        user_id=current.id,
-        title=title[:120],
-        doc_name=body.doc_name,
-        messages=body.messages,
-        created_at=now,
-        updated_at=now
-    )
-    db.add(conv)
-    await db.commit()
-    await db.refresh(conv)
-    return {
-        "id": conv.id,
-        "title": conv.title,
-        "updated_at": conv.updated_at.isoformat()
-    }
+    raw_title = body.title or (body.doc_name or "Percakapan")
+    clean_title = raw_title.strip()[:140] if raw_title else "Percakapan"
+
+    try:
+        # Check if conversation already exists (upsert)
+        if body.id:
+            stmt = select(Conversation).where(
+                Conversation.id == body.id,
+                Conversation.user_id == current.id
+            )
+            res = await db.execute(stmt)
+            existing = res.scalar_one_or_none()
+            if existing:
+                existing.title = clean_title
+                existing.messages = body.messages
+                if body.doc_name:
+                    existing.doc_name = body.doc_name
+                existing.updated_at = now
+                await db.commit()
+                return {
+                    "id": existing.id,
+                    "title": existing.title,
+                    "updated_at": existing.updated_at.isoformat()
+                }
+
+        conv_id = body.id or str(uuid.uuid4())
+        conv = Conversation(
+            id=conv_id,
+            user_id=current.id,
+            title=clean_title,
+            doc_name=body.doc_name,
+            messages=body.messages,
+            created_at=now,
+            updated_at=now
+        )
+        db.add(conv)
+        await db.commit()
+        await db.refresh(conv)
+        return {
+            "id": conv.id,
+            "title": conv.title,
+            "updated_at": conv.updated_at.isoformat()
+        }
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Gagal menyimpan percakapan: {str(e)}")
 
 
 @auth_router.get("/conversations/{conv_id}")
@@ -200,7 +235,7 @@ async def get_conversation(
     res = await db.execute(stmt)
     c = res.scalar_one_or_none()
     if not c:
-        raise HTTPException(status_code=404, detail="Percakapan nggak ketemu.")
+        raise HTTPException(status_code=404, detail="Percakapan tidak ditemukan.")
     return {
         "id": c.id,
         "title": c.title,
@@ -211,6 +246,7 @@ async def get_conversation(
 
 
 @auth_router.put("/conversations/{conv_id}")
+@auth_router.patch("/conversations/{conv_id}")
 async def update_conversation(
     conv_id: str,
     body: ConversationUpdate,
@@ -224,16 +260,20 @@ async def update_conversation(
     res = await db.execute(stmt)
     c = res.scalar_one_or_none()
     if not c:
-        raise HTTPException(status_code=404, detail="Percakapan nggak ketemu.")
+        raise HTTPException(status_code=404, detail="Percakapan tidak ditemukan.")
     
-    if body.title is not None:
-        c.title = body.title[:120]
-    if body.messages is not None:
-        c.messages = body.messages
-    c.updated_at = datetime.now(timezone.utc)
-    
-    await db.commit()
-    return {"ok": True, "title": c.title}
+    try:
+        if body.title is not None:
+            c.title = body.title.strip()[:140]
+        if body.messages is not None:
+            c.messages = body.messages
+        c.updated_at = datetime.now(timezone.utc)
+        
+        await db.commit()
+        return {"ok": True, "id": c.id, "title": c.title}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Gagal memperbarui percakapan: {str(e)}")
 
 
 @auth_router.delete("/conversations/{conv_id}")
@@ -249,8 +289,12 @@ async def delete_conversation(
     res = await db.execute(stmt)
     c = res.scalar_one_or_none()
     if not c:
-        raise HTTPException(status_code=404, detail="Percakapan nggak ketemu.")
+        raise HTTPException(status_code=404, detail="Percakapan tidak ditemukan.")
     
-    await db.delete(c)
-    await db.commit()
-    return {"ok": True}
+    try:
+        await db.delete(c)
+        await db.commit()
+        return {"ok": True, "id": conv_id}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Gagal menghapus percakapan: {str(e)}")

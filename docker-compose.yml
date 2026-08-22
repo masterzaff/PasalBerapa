@@ -38,6 +38,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-pasalberapa}
       JWT_SECRET: ${JWT_SECRET:-pasalberapa-super-secret-key-change-in-production}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      AI_NODE_URL: ${AI_NODE_URL:-http://ai_node:8000}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
 

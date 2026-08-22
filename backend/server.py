@@ -1,15 +1,12 @@
-"""
-PasalBerapa? — Backend Hub Server
-==================================
-Layanan API otentikasi, penyimpanan riwayat percakapan privat, dan proxy router (PostgreSQL).
-"""
 import os
 import logging
 from pathlib import Path
+from typing import Optional
 from contextlib import asynccontextmanager
 
+import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Request, Response, HTTPException
 from starlette.middleware.cors import CORSMiddleware
 
 from database import init_db, close_db
@@ -24,14 +21,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger("pasalberapa.backend")
 
+AI_NODE_URL = os.environ.get("AI_NODE_URL", "http://ai_node:8000").rstrip("/")
+ai_client: Optional[httpx.AsyncClient] = None
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: initialize PostgreSQL tables
+    global ai_client
+    # Startup: initialize PostgreSQL tables & AI Node reverse proxy client
     logger.info("Starting PasalBerapa Backend Server...")
     await init_db()
+    ai_client = httpx.AsyncClient(base_url=AI_NODE_URL, timeout=60.0)
     yield
-    # Shutdown: cleanly close database connection
+    # Shutdown: cleanly close database & HTTP client
     logger.info("Shutting down PasalBerapa Backend Server...")
+    if ai_client:
+        await ai_client.aclose()
     await close_db()
 
 app = FastAPI(
@@ -50,6 +54,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    import time
+    start_time = time.perf_counter()
+    response = await call_next(request)
+    process_time = time.perf_counter() - start_time
+    response.headers["X-Process-Time"] = f"{process_time:.4f}s"
+    return response
+
 # API Root & Health Router
 api_router = APIRouter(prefix="/api")
 
@@ -61,6 +74,78 @@ async def api_root():
         "status": "online",
         "version": "1.0.0"
     }
+
+@api_router.get("/health")
+async def health_check():
+    ai_status = "offline"
+    ai_detail = None
+    if ai_client:
+        try:
+            res = await ai_client.get("/health", timeout=3.0)
+            if res.status_code == 200:
+                ai_status = "online"
+                ai_detail = res.json()
+        except Exception:
+            pass
+    return {
+        "status": "ok",
+        "service": "pasalberapa-backend",
+        "database": "postgresql",
+        "ai_node": ai_status,
+        "ai_detail": ai_detail,
+        "version": "1.0.0"
+    }
+
+# ---------------------------------------------------------------------------
+# AI Node Reverse Proxy (PII Masking & Legal RAG / LLM Analysis)
+# ---------------------------------------------------------------------------
+@api_router.post("/mask")
+async def proxy_mask(request: Request):
+    if not ai_client:
+        raise HTTPException(status_code=503, detail="AI Service client belum diinisialisasi")
+    try:
+        body = await request.json()
+        res = await ai_client.post("/mask", json=body, timeout=30.0)
+        return Response(content=res.content, status_code=res.status_code, media_type="application/json")
+    except (httpx.ConnectError, httpx.ConnectTimeout):
+        raise HTTPException(status_code=503, detail="AI Node sedang offline atau belum siap")
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="AI Node timeout saat memindai PII")
+    except Exception as e:
+        logger.error(f"Error proxying /mask: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/analyze")
+async def proxy_analyze(request: Request):
+    if not ai_client:
+        raise HTTPException(status_code=503, detail="AI Service client belum diinisialisasi")
+    try:
+        body = await request.json()
+        res = await ai_client.post("/analyze", json=body, timeout=90.0)
+        return Response(content=res.content, status_code=res.status_code, media_type="application/json")
+    except (httpx.ConnectError, httpx.ConnectTimeout):
+        raise HTTPException(status_code=503, detail="AI Node sedang offline atau belum siap")
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="AI Node timeout saat menganalisis dokumen")
+    except Exception as e:
+        logger.error(f"Error proxying /analyze: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.post("/search")
+async def proxy_search(request: Request):
+    if not ai_client:
+        raise HTTPException(status_code=503, detail="AI Service client belum diinisialisasi")
+    try:
+        body = await request.json()
+        res = await ai_client.post("/search", json=body, timeout=20.0)
+        return Response(content=res.content, status_code=res.status_code, media_type="application/json")
+    except (httpx.ConnectError, httpx.ConnectTimeout):
+        raise HTTPException(status_code=503, detail="AI Node sedang offline atau belum siap")
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="AI Node timeout saat pencarian dokumen hukum")
+    except Exception as e:
+        logger.error(f"Error proxying /search: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 app.include_router(api_router)
 app.include_router(auth_router)
