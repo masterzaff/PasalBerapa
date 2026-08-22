@@ -1,7 +1,7 @@
 """
-PasalBerapa? — Auth + Saved Conversations (private, opt-in).
+PasalBerapa? — Auth + Saved Conversations (PostgreSQL).
 Anonymous by default. Users may register ONLY to save their chats.
-Email/password + JWT (bcrypt hashing). Stored in MongoDB.
+Email/password + JWT (bcrypt hashing). Stored in PostgreSQL with JSONB messages.
 """
 import os
 import uuid
@@ -12,12 +12,10 @@ from typing import List, Optional, Any, Dict
 
 from fastapi import APIRouter, Header, HTTPException, Depends
 from pydantic import BaseModel, EmailStr, Field
-from motor.motor_asyncio import AsyncIOMotorClient
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
-_client = AsyncIOMotorClient(os.environ["MONGO_URL"])
-_db = _client[os.environ["DB_NAME"]]
-users = _db["users"]
-conversations = _db["conversations"]
+from database import get_db, User, Conversation
 
 JWT_SECRET = os.environ.get("JWT_SECRET", "pasalberapa-dev-secret-change-me")
 JWT_ALG = "HS256"
@@ -70,11 +68,18 @@ def _make_token(user_id: str) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
 
 
-def _public_user(u: dict) -> dict:
-    return {"id": u["id"], "email": u["email"], "name": u.get("name") or u["email"].split("@")[0]}
+def _public_user(u: User) -> dict:
+    return {
+        "id": u.id,
+        "email": u.email,
+        "name": u.name or u.email.split("@")[0]
+    }
 
 
-async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
+async def get_current_user(
+    authorization: Optional[str] = Header(None),
+    db: AsyncSession = Depends(get_db)
+) -> User:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Butuh login dulu.")
     token = authorization.split(" ", 1)[1].strip()
@@ -84,7 +89,11 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
         raise HTTPException(status_code=401, detail="Sesi login habis, silakan masuk lagi.")
     except Exception:
         raise HTTPException(status_code=401, detail="Token nggak valid.")
-    u = await users.find_one({"id": payload.get("sub")})
+
+    user_id = payload.get("sub")
+    stmt = select(User).where(User.id == user_id)
+    res = await db.execute(stmt)
+    u = res.scalar_one_or_none()
     if not u:
         raise HTTPException(status_code=401, detail="User nggak ditemukan.")
     return u
@@ -92,100 +101,156 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
 
 # ---------- Auth routes ----------
 @auth_router.post("/auth/register")
-async def register(req: RegisterReq):
+async def register(req: RegisterReq, db: AsyncSession = Depends(get_db)):
     email = req.email.lower().strip()
-    if await users.find_one({"email": email}):
+    stmt = select(User).where(User.email == email)
+    res = await db.execute(stmt)
+    if res.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Email ini udah kedaftar. Coba login.")
-    user = {
-        "id": str(uuid.uuid4()),
-        "email": email,
-        "name": req.name,
-        "password": _hash_pw(req.password),
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }
-    await users.insert_one(user)
-    return {"token": _make_token(user["id"]), "user": _public_user(user)}
+    
+    user = User(
+        id=str(uuid.uuid4()),
+        email=email,
+        name=req.name,
+        password_hash=_hash_pw(req.password),
+        created_at=datetime.now(timezone.utc)
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return {"token": _make_token(user.id), "user": _public_user(user)}
 
 
 @auth_router.post("/auth/login")
-async def login(req: LoginReq):
+async def login(req: LoginReq, db: AsyncSession = Depends(get_db)):
     email = req.email.lower().strip()
-    u = await users.find_one({"email": email})
-    if not u or not _verify_pw(req.password, u["password"]):
+    stmt = select(User).where(User.email == email)
+    res = await db.execute(stmt)
+    u = res.scalar_one_or_none()
+    if not u or not _verify_pw(req.password, u.password_hash):
         raise HTTPException(status_code=401, detail="Email atau password salah.")
-    return {"token": _make_token(u["id"]), "user": _public_user(u)}
+    return {"token": _make_token(u.id), "user": _public_user(u)}
 
 
 @auth_router.get("/auth/me")
-async def me(current=Depends(get_current_user)):
+async def me(current: User = Depends(get_current_user)):
     return {"user": _public_user(current)}
 
 
 # ---------- Conversations (private per user) ----------
-def _conv_summary(c: dict) -> dict:
+def _conv_summary(c: Conversation) -> dict:
     return {
-        "id": c["id"],
-        "title": c.get("title") or "Percakapan",
-        "doc_name": c.get("doc_name"),
-        "count": len(c.get("messages", [])),
-        "updated_at": c.get("updated_at"),
+        "id": c.id,
+        "title": c.title or "Percakapan",
+        "doc_name": c.doc_name,
+        "count": len(c.messages) if isinstance(c.messages, list) else 0,
+        "updated_at": c.updated_at.isoformat() if c.updated_at else None,
     }
 
 
 @auth_router.get("/conversations")
-async def list_conversations(current=Depends(get_current_user)):
-    cur = conversations.find({"user_id": current["id"]}).sort("updated_at", -1)
-    items = [_conv_summary(c) async for c in cur]
+async def list_conversations(
+    current: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Conversation).where(Conversation.user_id == current.id).order_by(Conversation.updated_at.desc())
+    res = await db.execute(stmt)
+    conversations_list = res.scalars().all()
+    items = [_conv_summary(c) for c in conversations_list]
     return {"items": items}
 
 
 @auth_router.post("/conversations")
-async def save_conversation(body: ConversationIn, current=Depends(get_current_user)):
-    now = datetime.now(timezone.utc).isoformat()
+async def save_conversation(
+    body: ConversationIn,
+    current: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    now = datetime.now(timezone.utc)
     title = body.title or (body.doc_name or "Percakapan")
-    doc = {
-        "id": str(uuid.uuid4()),
-        "user_id": current["id"],
-        "title": title[:120],
-        "doc_name": body.doc_name,
-        "messages": body.messages,
-        "created_at": now,
-        "updated_at": now,
+    conv = Conversation(
+        id=str(uuid.uuid4()),
+        user_id=current.id,
+        title=title[:120],
+        doc_name=body.doc_name,
+        messages=body.messages,
+        created_at=now,
+        updated_at=now
+    )
+    db.add(conv)
+    await db.commit()
+    await db.refresh(conv)
+    return {
+        "id": conv.id,
+        "title": conv.title,
+        "updated_at": conv.updated_at.isoformat()
     }
-    await conversations.insert_one(doc)
-    return {"id": doc["id"], "title": doc["title"], "updated_at": now}
 
 
 @auth_router.get("/conversations/{conv_id}")
-async def get_conversation(conv_id: str, current=Depends(get_current_user)):
-    c = await conversations.find_one({"id": conv_id, "user_id": current["id"]})
+async def get_conversation(
+    conv_id: str,
+    current: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Conversation).where(
+        Conversation.id == conv_id,
+        Conversation.user_id == current.id
+    )
+    res = await db.execute(stmt)
+    c = res.scalar_one_or_none()
     if not c:
         raise HTTPException(status_code=404, detail="Percakapan nggak ketemu.")
     return {
-        "id": c["id"],
-        "title": c.get("title"),
-        "doc_name": c.get("doc_name"),
-        "messages": c.get("messages", []),
-        "updated_at": c.get("updated_at"),
+        "id": c.id,
+        "title": c.title,
+        "doc_name": c.doc_name,
+        "messages": c.messages or [],
+        "updated_at": c.updated_at.isoformat() if c.updated_at else None,
     }
 
 
 @auth_router.put("/conversations/{conv_id}")
-async def update_conversation(conv_id: str, body: ConversationUpdate, current=Depends(get_current_user)):
-    upd = {"updated_at": datetime.now(timezone.utc).isoformat()}
-    if body.title is not None:
-        upd["title"] = body.title[:120]
-    if body.messages is not None:
-        upd["messages"] = body.messages
-    res = await conversations.update_one({"id": conv_id, "user_id": current["id"]}, {"$set": upd})
-    if res.matched_count == 0:
+async def update_conversation(
+    conv_id: str,
+    body: ConversationUpdate,
+    current: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Conversation).where(
+        Conversation.id == conv_id,
+        Conversation.user_id == current.id
+    )
+    res = await db.execute(stmt)
+    c = res.scalar_one_or_none()
+    if not c:
         raise HTTPException(status_code=404, detail="Percakapan nggak ketemu.")
-    return {"ok": True, "title": upd.get("title")}
+    
+    if body.title is not None:
+        c.title = body.title[:120]
+    if body.messages is not None:
+        c.messages = body.messages
+    c.updated_at = datetime.now(timezone.utc)
+    
+    await db.commit()
+    return {"ok": True, "title": c.title}
 
 
 @auth_router.delete("/conversations/{conv_id}")
-async def delete_conversation(conv_id: str, current=Depends(get_current_user)):
-    res = await conversations.delete_one({"id": conv_id, "user_id": current["id"]})
-    if res.deleted_count == 0:
+async def delete_conversation(
+    conv_id: str,
+    current: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Conversation).where(
+        Conversation.id == conv_id,
+        Conversation.user_id == current.id
+    )
+    res = await db.execute(stmt)
+    c = res.scalar_one_or_none()
+    if not c:
         raise HTTPException(status_code=404, detail="Percakapan nggak ketemu.")
+    
+    await db.delete(c)
+    await db.commit()
     return {"ok": True}

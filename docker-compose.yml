@@ -1,0 +1,66 @@
+version: "3.8"
+
+services:
+  # -------------------------------------------------------------
+  # PostgreSQL Database (User Auth & Saved Conversations)
+  # -------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: pasalberapa-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-pasalberapa}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-pasalberapa}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # -------------------------------------------------------------
+  # Backend Hub (FastAPI + SQLAlchemy Async + JWT Auth)
+  # -------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pasalberapa-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-pasalberapa}
+      JWT_SECRET: ${JWT_SECRET:-pasalberapa-super-secret-key-change-in-production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+
+  # -------------------------------------------------------------
+  # AI Node (Presidio PII Masker + ChromaDB Legal RAG + LLM)
+  # -------------------------------------------------------------
+  ai_node:
+    build:
+      context: ./ai_node
+      dockerfile: Dockerfile
+    container_name: pasalberapa-ai-node
+    restart: unless-stopped
+    environment:
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      TOP_K_DEFAULT: ${TOP_K_DEFAULT:-6}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+    volumes:
+      - ai_node_data:/data
+    ports:
+      - "${AI_NODE_PORT:-8001}:8000"
+
+volumes:
+  postgres_data:
+  ai_node_data:
