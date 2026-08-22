@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Paperclip, ArrowUp, X, Loader2, ShieldAlert, FileText, Sparkles, FileCheck2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { useSession } from "@/context/SessionContext";
 import { useAnalysis } from "@/context/AnalysisContext";
+import { useAuth } from "@/context/AuthContext";
 import { useDocumentUpload } from "@/hooks/useDocumentUpload";
 
 const QUICK = [
@@ -13,11 +15,21 @@ const QUICK = [
   { mode: "key_articles", label: "Jelaskan Pasal Penting", icon: Sparkles },
 ];
 
-export default function ChatComposer({ variant = "docked", seed }) {
+// Deliberately DIFFERENT from the example chips in the marquee below.
+const PROMPTS = [
+  "Klausul mana yang paling ngerugiin aku?",
+  "Ini kontrak kerja apa kemitraan sih?",
+  "Denda telat bayarnya wajar nggak?",
+  "Jelasin Pasal 1266 KUHPerdata dong",
+];
+
+export default function ChatComposer({ variant = "docked", seed, onOpenAuth }) {
   const s = useSession();
   const { run, busy: analyzing } = useAnalysis();
+  const { user } = useAuth();
   const { uploadFile, progress, busy: extracting, cancel } = useDocumentUpload();
   const [input, setInput] = useState("");
+  const [focused, setFocused] = useState(false);
   const fileRef = useRef(null);
   const taRef = useRef(null);
   const disabled = analyzing || extracting;
@@ -26,25 +38,15 @@ export default function ChatComposer({ variant = "docked", seed }) {
   const BASE_PH = s.hasDocument
     ? "Tanya apa aja soal dokumen ini…"
     : "Tanya apa aja soal hukum, kontrak, atau hak kamu…";
-  const PROMPTS = [
-    "Ada denda tersembunyi nggak?",
-    "Aku boleh resign kapan aja?",
-    "Kontrak ini bisa diputus sepihak?",
-    "Deposit sewa boleh hangus?",
-  ];
   const [phIdx, setPhIdx] = useState(-1);
   useEffect(() => {
-    if (input) {
-      setPhIdx(-1);
-      return;
-    }
+    if (input) { setPhIdx(-1); return; }
     const id = setInterval(
       () => setPhIdx((p) => (p >= PROMPTS.length - 1 ? -1 : p + 1)),
       2800
     );
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input, s.hasDocument]);
+  }, [input]);
   const placeholder = phIdx < 0 ? BASE_PH : PROMPTS[phIdx];
 
   useEffect(() => {
@@ -54,7 +56,6 @@ export default function ChatComposer({ variant = "docked", seed }) {
     ta.style.height = Math.min(ta.scrollHeight, 160) + "px";
   }, [input]);
 
-  // Prefill from example question chips.
   useEffect(() => {
     if (seed && seed.text) {
       setInput(seed.text);
@@ -94,15 +95,14 @@ export default function ChatComposer({ variant = "docked", seed }) {
           {progress?.message || "Memproses…"}
         </div>
         <Progress value={progress?.percent || 0} className="mt-3 h-2" data-testid="extraction-progress" />
-        <button
-          onClick={cancel}
-          className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
+        <button onClick={cancel} className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
           <X className="h-3.5 w-3.5" /> Batalin
         </button>
       </div>
     );
   }
+
+  const showOverlay = !input && !focused;
 
   return (
     <div className="w-full">
@@ -123,11 +123,7 @@ export default function ChatComposer({ variant = "docked", seed }) {
         </div>
       )}
 
-      <div
-        className={`rounded-[1.4rem] border bg-card shadow-sm transition-shadow focus-within:shadow-md ${
-          hero ? "p-2" : "p-1.5"
-        }`}
-      >
+      <div className={`rounded-[1.4rem] border bg-card shadow-sm transition-shadow focus-within:shadow-md ${hero ? "p-2" : "p-1.5"}`}>
         {s.hasDocument && s.file && (
           <div className="mx-1 mb-1 mt-1 flex items-center gap-2 rounded-lg bg-secondary px-2.5 py-1.5 text-xs">
             <FileCheck2 className="h-3.5 w-3.5 text-primary" />
@@ -141,39 +137,53 @@ export default function ChatComposer({ variant = "docked", seed }) {
         )}
         <div className="flex items-end gap-1.5">
           <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            data-testid="attach-pdf-button"
+            type="button" variant="ghost" size="icon" data-testid="attach-pdf-button"
             onClick={pickFile}
             className="h-10 w-10 shrink-0 rounded-full text-muted-foreground hover:text-primary"
             title="Lampirkan PDF"
           >
             <Paperclip className="h-5 w-5" />
           </Button>
-          <textarea
-            ref={taRef}
-            data-testid="chat-composer-input"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-            rows={1}
-            placeholder={placeholder}
-            className={`max-h-[160px] min-h-[40px] flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-6 outline-none placeholder:text-muted-foreground ${
-              hero ? "md:text-base" : ""
-            }`}
-          />
+
+          <div className="relative flex-1">
+            <textarea
+              ref={taRef}
+              data-testid="chat-composer-input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
+              rows={1}
+              placeholder=""
+              className={`max-h-[160px] min-h-[40px] w-full resize-none bg-transparent px-1 py-2 text-sm leading-6 outline-none ${hero ? "md:text-base" : ""}`}
+            />
+            {showOverlay && (
+              <div className="pointer-events-none absolute inset-0 flex items-center overflow-hidden px-1">
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={placeholder}
+                    initial={{ y: 14, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: -14, opacity: 0 }}
+                    transition={{ duration: 0.32, ease: [0.2, 0.8, 0.2, 1] }}
+                    className={`block truncate text-muted-foreground ${hero ? "text-sm md:text-base" : "text-sm"}`}
+                  >
+                    {placeholder}
+                  </motion.span>
+                </AnimatePresence>
+              </div>
+            )}
+          </div>
+
           <Button
-            type="button"
-            data-testid="chat-send-button"
-            onClick={send}
-            disabled={disabled || !input.trim()}
-            size="icon"
+            type="button" data-testid="chat-send-button" onClick={send}
+            disabled={disabled || !input.trim()} size="icon"
             className="h-10 w-10 shrink-0 rounded-full"
           >
             {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
@@ -182,8 +192,15 @@ export default function ChatComposer({ variant = "docked", seed }) {
       </div>
 
       <div className="mt-2 px-1 text-center text-[11px] text-muted-foreground">
-        {hero ? (
-          <span>PDF opsional — bisa langsung nanya</span>
+        {!user ? (
+          <span>
+            Percakapan anonim — atau{" "}
+            <button onClick={onOpenAuth} className="font-semibold text-primary hover:underline" data-testid="composer-auth-link">
+              daftar buat simpan
+            </button>
+          </span>
+        ) : hero ? (
+          <span>PDF opsional · bisa langsung nanya</span>
         ) : (
           <span>Jawaban bisa keliru — tetap cek dokumen aslinya ya.</span>
         )}

@@ -73,6 +73,10 @@ app.include_router(api_router)
 from pasalberapa_ref import ref_router  # noqa: E402
 app.include_router(ref_router)
 
+# PasalBerapa? auth + saved conversations (private, opt-in)
+from auth import auth_router  # noqa: E402
+app.include_router(auth_router)
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,

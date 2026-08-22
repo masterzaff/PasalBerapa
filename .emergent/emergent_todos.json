@@ -1,38 +1,38 @@
 [
   {
-    "content": "Phase 1: Get design guidelines from design_agent",
+    "content": "Landing: badge chip dokumen di marquee ganti '+PDF'",
     "status": "completed"
   },
   {
-    "content": "Phase 1: Set up folder structure (frontend active, backend + ai_node placeholders with API contracts)",
+    "content": "Landing: hero satu layar penuh; trust & tahapan section below-the-fold (scroll)",
     "status": "completed"
   },
   {
-    "content": "Phase 1: Append configurable endpoint env vars to frontend/.env",
+    "content": "ChatComposer: placeholder animasi transisi (slide) + prompt beda dari marquee",
     "status": "completed"
   },
   {
-    "content": "Phase 2: Install pdf.js + tesseract.js, build client-side PDF/OCR extraction engine (VERIFIED)",
+    "content": "ChatComposer: hint 'Percakapan anonim, atau daftar buat simpan' (link auth)",
     "status": "completed"
   },
   {
-    "content": "Phase 2: Build PII mapping state management + client-side unmask utility (VERIFIED)",
+    "content": "Backend: auth (register/login/me) JWT + bcrypt + conversations CRUD",
     "status": "completed"
   },
   {
-    "content": "Phase 2: Build configurable API service layer with connection status + graceful states (VERIFIED)",
+    "content": "Frontend: AuthContext + AuthPage full-screen",
     "status": "completed"
   },
   {
-    "content": "Phase 2: Build full UI (branding, upload, extraction, analysis, quick actions, risk dashboard, PII viewer, settings) (VERIFIED)",
+    "content": "TopBar: 'Daftar sekarang' / user + Riwayat + logout",
     "status": "completed"
   },
   {
-    "content": "Phase 2: Write API contract docs in ai_node/ and backend/ + reference stub",
+    "content": "Frontend: simpan & riwayat percakapan (private)",
     "status": "completed"
   },
   {
-    "content": "Phase 2: End-to-end testing with testing_agent (PASSED 100%)",
+    "content": "Verifikasi flow auth + save (self)",
     "status": "completed"
   }
 ]

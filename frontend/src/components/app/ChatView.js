@@ -1,10 +1,11 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { FileText, Gauge, Lock, Bot, FileCheck2, Scale } from "lucide-react";
+import { FileText, Gauge, Lock, Bot, FileCheck2, Scale, Save, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { toast } from "sonner";
 import ChatComposer from "@/components/app/ChatComposer";
 import { Message, TypingBubble } from "@/components/app/ChatMessage";
 import DocumentPanel from "@/components/app/DocumentPanel";
@@ -13,6 +14,8 @@ import PrivacyVault from "@/components/app/PrivacyVault";
 import { useSession } from "@/context/SessionContext";
 import { useAnalysis } from "@/context/AnalysisContext";
 import { useUI } from "@/context/UIContext";
+import { useAuth } from "@/context/AuthContext";
+import { authApi } from "@/lib/authApi";
 
 function PanelButton({ onClick, icon: Icon, label, count, testId }) {
   return (
@@ -20,23 +23,39 @@ function PanelButton({ onClick, icon: Icon, label, count, testId }) {
       <Icon className="h-4 w-4" />
       <span className="hidden sm:inline">{label}</span>
       {count > 0 && (
-        <span className="ml-0.5 rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
-          {count}
-        </span>
+        <span className="ml-0.5 rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">{count}</span>
       )}
     </Button>
   );
 }
 
-export default function ChatView() {
+export default function ChatView({ onOpenAuth }) {
   const s = useSession();
   const { busy: analyzing, busyMode } = useAnalysis();
   const ui = useUI();
+  const { user, token } = useAuth();
   const feedRef = useRef(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
   }, [s.messages, analyzing]);
+
+  const save = async () => {
+    if (!user) { onOpenAuth(); return; }
+    if (saving || s.messages.length === 0) return;
+    setSaving(true);
+    try {
+      const firstUser = s.messages.find((m) => m.role === "user");
+      const title = s.file?.name || (firstUser && firstUser.content ? firstUser.content.slice(0, 60) : "Percakapan");
+      await authApi.saveConversation({ title, messages: s.messages, doc_name: s.file?.name || null }, token);
+      toast.success("Percakapan disimpan ke akunmu.");
+    } catch (e) {
+      toast.error(e.message || "Gagal menyimpan.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -57,19 +76,22 @@ export default function ChatView() {
               <>
                 <Scale className="h-4 w-4 shrink-0 text-primary" />
                 <span className="font-medium">Obrolan hukum</span>
-                <span className="hidden text-xs text-muted-foreground sm:inline">
-                  · lampirin PDF buat bedah dokumen
-                </span>
               </>
             )}
           </div>
-          {s.hasDocument && (
-            <div className="flex items-center gap-1.5">
-              <PanelButton onClick={() => ui.openPanel("doc")} icon={FileText} label="Dokumen" testId="open-doc-panel-button" />
-              <PanelButton onClick={() => ui.openPanel("risk")} icon={Gauge} label="Risiko" count={s.risks.length} testId="open-risk-panel-button" />
-              <PanelButton onClick={() => ui.openPanel("vault")} icon={Lock} label="Vault" count={Object.keys(s.piiMapping || {}).length} testId="open-vault-panel-button" />
-            </div>
-          )}
+          <div className="flex items-center gap-1.5">
+            <Button variant="ghost" size="sm" onClick={save} disabled={saving || s.messages.length === 0} data-testid="save-conversation-button" className="gap-1.5">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              <span className="hidden sm:inline">Simpan</span>
+            </Button>
+            {s.hasDocument && (
+              <>
+                <PanelButton onClick={() => ui.openPanel("doc")} icon={FileText} label="Dokumen" testId="open-doc-panel-button" />
+                <PanelButton onClick={() => ui.openPanel("risk")} icon={Gauge} label="Risiko" count={s.risks.length} testId="open-risk-panel-button" />
+                <PanelButton onClick={() => ui.openPanel("vault")} icon={Lock} label="Vault" count={Object.keys(s.piiMapping || {}).length} testId="open-vault-panel-button" />
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -82,9 +104,8 @@ export default function ChatView() {
               </div>
               <div className="max-w-[85%] rounded-2xl border bg-accent px-4 py-3 text-sm leading-6">
                 Dokumen <span className="font-medium">{s.file?.name}</span> udah kebaca
-                {s.extractInfo ? ` (${s.extractInfo.totalPages} halaman)` : ""}. Mau mulai dari
-                mana? Klik chip di bawah — <b>Bedah Risiko</b>, <b>Ringkas Isi</b>, atau
-                <b> Jelaskan Pasal Penting</b> — atau ketik pertanyaanmu.
+                {s.extractInfo ? ` (${s.extractInfo.totalPages} halaman)` : ""}. Mau mulai dari mana?
+                Klik chip di bawah — <b>Bedah Risiko</b>, <b>Ringkas Isi</b>, atau <b>Jelaskan Pasal Penting</b> — atau ketik pertanyaanmu.
               </div>
             </motion.div>
           )}
@@ -111,7 +132,7 @@ export default function ChatView() {
 
       <div className="border-t bg-background/80 backdrop-blur">
         <div className="mx-auto max-w-3xl px-4 py-3">
-          <ChatComposer variant="docked" />
+          <ChatComposer variant="docked" onOpenAuth={onOpenAuth} />
         </div>
       </div>
 
@@ -124,20 +145,11 @@ export default function ChatView() {
               <TabsTrigger value="risk" className="gap-1.5"><Gauge className="h-3.5 w-3.5" /> Risiko</TabsTrigger>
               <TabsTrigger value="vault" className="gap-1.5"><Lock className="h-3.5 w-3.5" /> Vault</TabsTrigger>
             </TabsList>
-            <TabsContent value="doc" className="mt-2 min-h-0 flex-1">
-              <DocumentPanel />
-            </TabsContent>
+            <TabsContent value="doc" className="mt-2 min-h-0 flex-1"><DocumentPanel /></TabsContent>
             <TabsContent value="risk" className="mt-2 min-h-0 flex-1">
-              <RiskDashboard
-                onViewInDoc={(ex) => {
-                  s.setHighlightExcerpt(ex);
-                  ui.setPanelTab("doc");
-                }}
-              />
+              <RiskDashboard onViewInDoc={(ex) => { s.setHighlightExcerpt(ex); ui.setPanelTab("doc"); }} />
             </TabsContent>
-            <TabsContent value="vault" className="mt-2 min-h-0 flex-1">
-              <PrivacyVault />
-            </TabsContent>
+            <TabsContent value="vault" className="mt-2 min-h-0 flex-1"><PrivacyVault /></TabsContent>
           </Tabs>
         </SheetContent>
       </Sheet>
