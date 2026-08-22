@@ -97,6 +97,77 @@ function GlitchingTagChip({ original, redacted, delay = 0, cls = "" }) {
   );
 }
 
+// --- CONTRACT RISK REVIEW SIMULATION CARD ---
+function ReviewSimulationCard() {
+  return (
+    <div className="mt-8 overflow-hidden rounded-2xl border bg-card shadow-sm">
+      <div className="border-b bg-muted/40 px-5 py-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-destructive animate-pulse" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-foreground">
+            Simulasi Review: Klausul Denda &amp; Terminasi
+          </span>
+        </div>
+        <span className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-[11px] font-bold text-destructive">
+          Skor Risiko: 85 (Tinggi)
+        </span>
+      </div>
+
+      <div className="p-5 sm:p-6 grid gap-5 md:grid-cols-2 items-stretch">
+        {/* Sisi Kiri: Klausul Asli */}
+        <div className="flex flex-col justify-between rounded-xl border border-red-500/20 bg-red-500/[0.03] p-4 sm:p-5">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wide">
+              <TriangleAlert className="h-4 w-4" />
+              <span>Klausul Asli pada Draf Kontrak</span>
+            </div>
+            <div className="mt-3 rounded-lg bg-background/80 p-3.5 border border-red-500/15 shadow-inner text-xs sm:text-[13px] leading-relaxed text-foreground/90 font-mono">
+              <p className="text-[11px] font-sans font-medium text-muted-foreground mb-1.5">Pasal 7 (Denda Keterlambatan):</p>
+              <p>
+                “Pihak Kedua wajib membayar ganti rugi <span className="bg-red-500/15 text-red-700 dark:text-red-300 px-1 py-0.5 rounded font-semibold">100% dari total nilai proyek</span> secara tunai dalam waktu <span className="bg-red-500/15 text-red-700 dark:text-red-300 px-1 py-0.5 rounded font-semibold">24 jam</span> jika terjadi keterlambatan tanpa klausul force majeure.”
+              </p>
+            </div>
+          </div>
+          <p className="mt-3 text-[11px] text-muted-foreground flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
+            Penalti tidak proporsional &amp; meniadakan hak keadaan memaksa.
+          </p>
+        </div>
+
+        {/* Sisi Kanan: Bedah & Solusi AI */}
+        <div className="flex flex-col justify-between rounded-xl border border-emerald-500/25 bg-emerald-500/[0.04] p-4 sm:p-5">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
+              <Shield className="h-4 w-4" />
+              <span>Bedah Risiko &amp; Solusi AI</span>
+            </div>
+            <div className="mt-3 space-y-2 text-xs sm:text-[12px] leading-relaxed">
+              <div className="rounded-lg bg-background/80 p-2.5 border border-emerald-500/15 shadow-inner">
+                <p className="font-semibold text-foreground">⚠️ Risiko Berat Sebelah</p>
+                <p className="text-muted-foreground mt-0.5 text-[11px]">Denda 100% melanggar azas proporsionalitas &amp; itikad baik berkontrak.</p>
+              </div>
+
+              <div className="rounded-lg bg-background/80 p-2.5 border border-emerald-500/15 shadow-inner text-[11px]">
+                <p className="font-semibold text-foreground">⚖️ Rujukan: Pasal 1244–1245 KUHPerdata</p>
+                <p className="text-muted-foreground mt-0.5">Ganti rugi wajib mengecualikan keadaan memaksa (*overmacht*).</p>
+              </div>
+
+              <div className="rounded-lg bg-emerald-500/15 border border-emerald-500/30 p-2.5 text-emerald-800 dark:text-emerald-300">
+                <p className="font-semibold">💡 Rekomendasi Revisi (Redline)</p>
+                <p className="mt-0.5 text-[11px]">Usulkan batas ganti rugi <strong>maks. 10%</strong> + tambahkan <strong>masa tenggang 7 hari</strong>.</p>
+              </div>
+            </div>
+          </div>
+          <p className="mt-3 text-[11px] text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+            <Check className="h-3.5 w-3.5 shrink-0" />
+            AI memberikan pasal rujukan &amp; klausul penyeimbang otomatis.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- REDACTION COMPARISON DEMO CARD ---
 function RedactionDemoCard({ isBisnis }) {
   return (
@@ -109,7 +180,7 @@ function RedactionDemoCard({ isBisnis }) {
           </span>
         </div>
         <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
-          100% Berjalan di Browser Anda
+          Zero Retention · Disamarkan Otomatis
         </span>
       </div>
 
@@ -639,44 +710,7 @@ export default function Landing({ onOpenAuth }) {
                 </p>
               </div>
 
-              <div className="mt-8 overflow-hidden rounded-2xl border bg-card shadow-md">
-                <div className="border-b bg-secondary/50 px-5 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-destructive" />
-                    <span className="font-mono text-xs font-semibold">Simulasi Review: Klausul Denda &amp; Terminasi</span>
-                  </div>
-                  <span className="rounded-full bg-destructive/15 px-2.5 py-0.5 text-[11px] font-bold text-destructive">
-                    SKOR RISIKO: 85 (TINGGI)
-                  </span>
-                </div>
-
-                <div className="p-6 grid gap-6 md:grid-cols-2">
-                  <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
-                    <p className="text-xs font-bold uppercase text-destructive tracking-wide">⚠️ Klausul Asli pada Draf Kontrak:</p>
-                    <p className="mt-2 font-mono text-xs leading-relaxed text-foreground/90 bg-background/80 p-3 rounded-lg border">
-                      “Pihak Kedua (<span className="text-primary font-bold">&lt;NAMA_VENDOR&gt;</span>) wajib membayar ganti rugi <strong>100% dari total nilai proyek (<span className="text-primary font-bold">&lt;NOMINAL_RP&gt;</span>)</strong> secara tunai dalam waktu 24 jam jika terjadi keterlambatan tanpa klausul force majeure.”
-                    </p>
-                    <p className="mt-3 text-[11px] text-destructive">
-                      ✖ Penalti tidak proporsional dan tidak memberikan toleransi keadaan memaksa.
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl border border-primary/30 bg-accent/40 p-4">
-                    <p className="text-xs font-bold uppercase text-primary tracking-wide">🛡️ Bedah Risiko &amp; Rekomendasi AI:</p>
-                    <div className="mt-2 space-y-2 text-xs leading-relaxed text-foreground/90">
-                      <p>
-                        <strong>Masalah:</strong> Klausul ganti rugi 100% tanpa batas waktu adalah klausul berisiko fatal (ekstrem) dan berpotensi melanggar azas itikad baik dalam berkontrak.
-                      </p>
-                      <div className="rounded-lg bg-background p-2.5 border text-[11px] text-muted-foreground">
-                        <strong className="text-foreground">Rujukan Hukum:</strong> Pasal 1243 - 1245 KUHPerdata mengatur bahwa penggantian biaya &amp; ganti rugi harus timbul dari kelalaian nyata dan mengecualikan keadaan memaksa (*overmacht*).
-                      </div>
-                      <p className="text-primary font-semibold">
-                        ✓ Solusi Redline: Usulkan batas ganti rugi maksimal 10% dan tambahkan klausul masa tenggang (grace period 7 hari).
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <ReviewSimulationCard />
             </div>
           </section>
 
