@@ -2,7 +2,7 @@
 PasalBerapa? — Agentic Tools for Legal Analysis
 ===============================================
 Koleksi tools yang dapat dipanggil oleh LLM selama proses penalaran (ReAct Loop):
-1. search_indonesian_law: Mencari rujukan pasal di ChromaDB (KUHPerdata, UU Cipta Kerja, dll.)
+1. search_indonesian_law: Mencari rujukan pasal via pasal.id (KUHPerdata, UU Cipta Kerja, dll.)
 2. search_user_document: Mencari potongan klausul di draf kontrak pengguna.
 3. read_document_lines: Membaca rentang baris tertentu dari dokumen pengguna secara presisi.
 """
@@ -10,7 +10,7 @@ import re
 import logging
 from typing import List, Dict, Any, Optional
 
-import retriever
+import pasal_client
 
 logger = logging.getLogger("pasalberapa.tools")
 
@@ -78,14 +78,14 @@ LEGAL_TOOLS_SCHEMA = [
 
 
 def execute_search_law(query: str, regulation: Optional[str] = None, top_k: int = 4) -> Dict[str, Any]:
-    """Cari rujukan pasal di ChromaDB index."""
-    full_query = f"{regulation} {query}" if regulation else query
-    results = retriever.search(full_query, top_k=top_k)
+    """Cari rujukan pasal via pasal.id (live search API)."""
+    results = pasal_client.search(query, regulation=regulation, top_k=top_k)
     if not results:
-        return {
-            "found": False,
-            "message": f"Tidak ditemukan pasal spesifik untuk query '{query}'. Gunakan penalaran hukum umum atau coba kata kunci lain."
-        }
+        if not pasal_client.is_configured():
+            msg = "Pencarian pasal live belum aktif (PASAL_API_TOKEN belum diset di server). Gunakan penalaran hukum umum."
+        else:
+            msg = f"Tidak ditemukan pasal spesifik untuk query '{query}'. Gunakan penalaran hukum umum atau coba kata kunci lain."
+        return {"found": False, "message": msg}
     return {
         "found": True,
         "results": results

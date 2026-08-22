@@ -24,6 +24,7 @@ import retriever
 import prompts
 import llm
 import tools
+import pasal_client
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("pasalberapa.app")
@@ -73,6 +74,7 @@ async def health():
         "embed_model": retriever.EMBED_MODEL,
         "pii_engine": masker.engine_name(),
         "llm": llm.status(),
+        "pasal_id_configured": pasal_client.is_configured(),
     }
 
 

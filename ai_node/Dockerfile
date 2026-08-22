@@ -25,7 +25,7 @@ RUN uv pip install -r requirements.txt
 # 3) SpaCy NER model download
 RUN python -m spacy download xx_ent_wiki_sm || uv pip install https://github.com/explosion/spacy-models/releases/download/xx_ent_wiki_sm-3.8.0/xx_ent_wiki_sm-3.8.0-py3-none-any.whl
 
-COPY app.py masker.py retriever.py prompts.py llm.py ingest.py tools.py entrypoint.sh ./
+COPY app.py masker.py retriever.py prompts.py llm.py ingest.py tools.py pasal_client.py entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
 VOLUME ["/data"]
