@@ -4,23 +4,26 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SessionProvider, useSession } from "@/context/SessionContext";
 import { ConnectionProvider } from "@/context/ConnectionContext";
+import { AnalysisProvider } from "@/context/AnalysisContext";
+import { UIProvider } from "@/context/UIContext";
 import TopBar from "@/components/app/TopBar";
-import HeroUpload from "@/components/app/HeroUpload";
-import Workspace from "@/components/app/Workspace";
+import Landing from "@/components/app/Landing";
+import ChatView from "@/components/app/ChatView";
 import SettingsModal from "@/components/app/SettingsModal";
 
 function Shell() {
-  const { hasDocument } = useSession();
+  const { hasDocument, messages } = useSession();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = () => setSettingsOpen(true);
+  const started = hasDocument || messages.length > 0;
   return (
-    <div className="App min-h-screen bg-background text-foreground paper-grain">
+    <div className="App flex min-h-screen flex-col bg-background text-foreground paper-grain">
       <TopBar onOpenSettings={openSettings} />
-      <main>
-        {hasDocument ? (
-          <Workspace onOpenSettings={openSettings} />
+      <main className="flex min-h-0 flex-1 flex-col">
+        {started ? (
+          <ChatView onOpenSettings={openSettings} />
         ) : (
-          <HeroUpload onOpenSettings={openSettings} />
+          <Landing onOpenSettings={openSettings} />
         )}
       </main>
       <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
@@ -33,9 +36,13 @@ export default function App() {
   return (
     <SessionProvider>
       <ConnectionProvider>
-        <TooltipProvider delayDuration={150}>
-          <Shell />
-        </TooltipProvider>
+        <AnalysisProvider>
+          <UIProvider>
+            <TooltipProvider delayDuration={150}>
+              <Shell />
+            </TooltipProvider>
+          </UIProvider>
+        </AnalysisProvider>
       </ConnectionProvider>
     </SessionProvider>
   );

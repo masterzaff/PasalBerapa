@@ -1,5 +1,5 @@
 import React from "react";
-import { ShieldAlert, TriangleAlert, ShieldCheck, Gauge, Lightbulb, Quote } from "lucide-react";
+import { ShieldAlert, TriangleAlert, ShieldCheck, Gauge, Lightbulb, Quote, ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -32,7 +32,7 @@ function ScoreRing({ score }) {
   );
 }
 
-export default function RiskDashboard() {
+export default function RiskDashboard({ onViewInDoc }) {
   const { risks, riskScore, setHighlightExcerpt } = useSession();
 
   const counts = risks.reduce(
@@ -121,6 +121,14 @@ export default function RiskDashboard() {
                         <Quote className="mt-0.5 h-3 w-3 shrink-0" />
                         <span>“{r.source_excerpt}”</span>
                       </div>
+                    )}
+                    {r.source_excerpt && onViewInDoc && (
+                      <button
+                        onClick={() => onViewInDoc(r.source_excerpt)}
+                        className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> Lihat di dokumen
+                      </button>
                     )}
                   </AccordionContent>
                 </AccordionItem>
