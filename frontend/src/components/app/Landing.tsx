@@ -215,7 +215,7 @@ const BUSINESS_METRICS = [
     icon: Lock,
     val: "100% Aman",
     label: "UU PDP & Privacy-First",
-    desc: "Presidio Client-Side Redaction: NIK, NPWP, nilai kontrak & rekening disamarkan.",
+    desc: "PII Redaction Layer: NIK, NPWP, nilai kontrak, nama & rekening disamarkan sebelum ke AI.",
     color: "var(--risk-safe)",
   },
   {
@@ -437,7 +437,7 @@ export default function Landing({ onOpenAuth }) {
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {isBisnis
-                  ? "Privasi terjamin — data sensitif di-mask otomatis di browser (UU PDP)."
+                  ? "Privasi terjamin — data sensitif disamarkan otomatis sebelum dianalisis AI (UU PDP)."
                   : "Tenang, dokumen kamu nggak disimpen."}
               </p>
             </div>
@@ -689,7 +689,7 @@ export default function Landing({ onOpenAuth }) {
                   Keamanan Data &amp; Arsitektur Tanpa Kebocoran
                 </h2>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Satu-satunya solusi AI hukum di Indonesia dengan proteksi tokenisasi PII sebelum data keluar dari browser.
+                  Solusi AI hukum dengan proteksi tokenisasi PII otomatis sebelum kontrak dianalisis oleh model AI.
                 </p>
               </div>
 
@@ -698,9 +698,9 @@ export default function Landing({ onOpenAuth }) {
                   <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary">
                     <Shield className="h-5 w-5" />
                   </div>
-                  <h3 className="mt-4 font-display text-base font-semibold">Client-Side Masking</h3>
+                  <h3 className="mt-4 font-display text-base font-semibold">PII Redaction Layer</h3>
                   <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                    Presidio engine memindai NIK, NPWP, nama, nomor rekening, dan nilai kontrak di sisi klien. AI hanya memproses tag anonim.
+                    Presidio engine memindai NIK, NPWP, nama, nomor rekening, dan nilai kontrak. Model AI hanya memproses tag data yang sudah disamarkan.
                   </p>
                 </div>
 
@@ -710,7 +710,7 @@ export default function Landing({ onOpenAuth }) {
                   </div>
                   <h3 className="mt-4 font-display text-base font-semibold">Stateless &amp; Zero Retention</h3>
                   <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                    Dokumen kontrak tidak disimpan di server publik. Seluruh proses analisis berjalan di sesi sementara browser Anda.
+                    Dokumen kontrak tidak disimpan permanen di database publik. Analisis berjalan secara *ephemeral* tanpa retensi data.
                   </p>
                 </div>
 
