@@ -1,6 +1,10 @@
 FROM python:3.11-slim
 
-ENV PYTHONUNBUFFERED=1
+# Copy the official uv binary
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+ENV PYTHONUNBUFFERED=1 \
+    UV_SYSTEM_PYTHON=1
 
 WORKDIR /app
 
@@ -11,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN uv pip install -r requirements.txt
 
 COPY . .
 
