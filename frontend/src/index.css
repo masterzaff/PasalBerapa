@@ -1,0 +1,185 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    --font-body: "Figtree", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+    font-family: var(--font-mono);
+}
+
+@layer base {
+    :root {
+        --background: 36 33% 98%;
+        --foreground: 222 47% 11%;
+        --card: 0 0% 100%;
+        --card-foreground: 222 47% 11%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222 47% 11%;
+
+        --primary: 174 72% 28%;
+        --primary-foreground: 0 0% 100%;
+
+        --secondary: 210 20% 96%;
+        --secondary-foreground: 222 47% 11%;
+
+        --muted: 210 20% 96%;
+        --muted-foreground: 215 16% 40%;
+
+        --accent: 174 45% 92%;
+        --accent-foreground: 174 72% 18%;
+
+        --border: 214 20% 90%;
+        --input: 214 20% 90%;
+        --ring: 174 72% 28%;
+
+        --destructive: 8 78% 52%;
+        --destructive-foreground: 0 0% 100%;
+
+        --radius: 0.9rem;
+
+        --risk-high: 8 78% 52%;
+        --risk-high-bg: 8 80% 96%;
+        --risk-warn: 38 92% 50%;
+        --risk-warn-bg: 44 100% 95%;
+        --risk-safe: 152 55% 36%;
+        --risk-safe-bg: 152 45% 95%;
+
+        --vault: 200 85% 45%;
+        --vault-bg: 200 85% 96%;
+
+        --chart-1: 174 72% 28%;
+        --chart-2: 200 85% 45%;
+        --chart-3: 38 92% 50%;
+        --chart-4: 8 78% 52%;
+        --chart-5: 152 55% 36%;
+    }
+    .dark {
+        --background: 222 47% 7%;
+        --foreground: 210 40% 98%;
+        --card: 222 47% 9%;
+        --card-foreground: 210 40% 98%;
+        --popover: 222 47% 9%;
+        --popover-foreground: 210 40% 98%;
+
+        --primary: 174 70% 45%;
+        --primary-foreground: 222 47% 7%;
+
+        --secondary: 217 20% 14%;
+        --secondary-foreground: 210 40% 98%;
+
+        --muted: 217 20% 14%;
+        --muted-foreground: 215 20% 70%;
+
+        --accent: 174 40% 18%;
+        --accent-foreground: 174 70% 80%;
+
+        --border: 217 20% 18%;
+        --input: 217 20% 18%;
+        --ring: 174 70% 45%;
+
+        --destructive: 8 70% 50%;
+        --destructive-foreground: 210 40% 98%;
+
+        --risk-high: 8 80% 62%;
+        --risk-high-bg: 8 40% 16%;
+        --risk-warn: 38 92% 60%;
+        --risk-warn-bg: 44 45% 16%;
+        --risk-safe: 152 55% 55%;
+        --risk-safe-bg: 152 35% 16%;
+
+        --vault: 200 85% 60%;
+        --vault-bg: 200 45% 16%;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground;
+    }
+}
+
+@layer components {
+    .font-display {
+        font-family: var(--font-display);
+    }
+    .font-mono-plex {
+        font-family: var(--font-mono);
+    }
+    .tag-chip {
+        font-family: var(--font-mono);
+        @apply text-xs rounded-md px-1.5 py-0.5;
+        background: hsl(var(--vault-bg));
+        color: hsl(var(--vault));
+    }
+    .paper-grain {
+        background-image: radial-gradient(hsl(var(--foreground) / 0.025) 1px, transparent 1px);
+        background-size: 22px 22px;
+    }
+    .hero-mist {
+        background:
+            radial-gradient(900px circle at 12% 8%, hsl(var(--primary) / 0.14), transparent 55%),
+            radial-gradient(700px circle at 88% 0%, hsl(var(--vault) / 0.12), transparent 50%);
+    }
+}
+
+/* Slim scrollbars for reading panels */
+.scroll-slim::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+.scroll-slim::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 999px;
+}
+.scroll-slim::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.001ms !important;
+        transition-duration: 0.001ms !important;
+    }
+}
+
+@layer base {
+    [data-debug-wrapper="true"] {
+        display: contents !important;
+    }
+    [data-debug-wrapper="true"] > * {
+        margin-left: inherit;
+        margin-right: inherit;
+        margin-top: inherit;
+        margin-bottom: inherit;
+        column-gap: inherit;
+        row-gap: inherit;
+        gap: inherit;
+        border-left-width: inherit;
+        border-right-width: inherit;
+        border-top-width: inherit;
+        border-bottom-width: inherit;
+        border-left-style: inherit;
+        border-right-style: inherit;
+        border-top-style: inherit;
+        border-bottom-style: inherit;
+        border-left-color: inherit;
+        border-right-color: inherit;
+        border-top-color: inherit;
+        border-bottom-color: inherit;
+    }
+}

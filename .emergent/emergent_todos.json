@@ -1,0 +1,38 @@
+[
+  {
+    "content": "Phase 1: Get design guidelines from design_agent",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 1: Set up folder structure (frontend active, backend + ai_node placeholders with API contracts)",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 1: Append configurable endpoint env vars to frontend/.env",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 2: Install pdf.js + tesseract.js, build client-side PDF/OCR extraction engine (VERIFIED)",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 2: Build PII mapping state management + client-side unmask utility (VERIFIED)",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 2: Build configurable API service layer with connection status + graceful states (VERIFIED)",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 2: Build full UI (branding, upload, extraction, analysis, quick actions, risk dashboard, PII viewer, settings) (VERIFIED)",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 2: Write API contract docs in ai_node/ and backend/ + reference stub",
+    "status": "completed"
+  },
+  {
+    "content": "Phase 2: End-to-end testing with testing_agent (PASSED 100%)",
+    "status": "completed"
+  }
+]

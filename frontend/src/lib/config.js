@@ -1,0 +1,50 @@
+// Configurable external-endpoint layer for PasalBerapa?.
+// The frontend is a privacy-first WRAPPER: PII masking + RAG/LLM analysis run on
+// the user's own server. These values default to env vars but can be overridden
+// at runtime from the Settings panel (stored ONLY as connection config, never
+// document/PII content).
+
+const LS_KEY = "pasalberapa.endpoints.v1";
+
+const ENV_DEFAULTS = {
+  aiNodeUrl: process.env.REACT_APP_AI_NODE_URL || "",
+  piiEndpoint: process.env.REACT_APP_PII_ENDPOINT || "",
+  analyzeEndpoint: process.env.REACT_APP_ANALYZE_ENDPOINT || "",
+  timeoutMs: 60000,
+};
+
+export function getEndpoints() {
+  let stored = {};
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) stored = JSON.parse(raw);
+  } catch (e) {
+    stored = {};
+  }
+  return {
+    aiNodeUrl: stored.aiNodeUrl ?? ENV_DEFAULTS.aiNodeUrl,
+    piiEndpoint: stored.piiEndpoint ?? ENV_DEFAULTS.piiEndpoint,
+    analyzeEndpoint: stored.analyzeEndpoint ?? ENV_DEFAULTS.analyzeEndpoint,
+    timeoutMs: stored.timeoutMs ?? ENV_DEFAULTS.timeoutMs,
+  };
+}
+
+export function saveEndpoints(next) {
+  const merged = { ...getEndpoints(), ...next };
+  localStorage.setItem(LS_KEY, JSON.stringify(merged));
+  return merged;
+}
+
+export function resetEndpoints() {
+  localStorage.removeItem(LS_KEY);
+  return getEndpoints();
+}
+
+// Whether analysis features can even be attempted (an endpoint is configured).
+export function hasAnalyzeConfigured(cfg = getEndpoints()) {
+  return Boolean(cfg.analyzeEndpoint && cfg.analyzeEndpoint.trim());
+}
+
+export function hasMaskConfigured(cfg = getEndpoints()) {
+  return Boolean(cfg.piiEndpoint && cfg.piiEndpoint.trim());
+}
