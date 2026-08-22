@@ -1,0 +1,11 @@
+version: "3.8"
+
+# -------------------------------------------------------------
+# Rename this file to 'docker-compose.override.yml' to automatically
+# disable ai_node on standard 'docker compose up' commands.
+# -------------------------------------------------------------
+
+services:
+  ai_node:
+    profiles:
+      - disabled

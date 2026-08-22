@@ -1,0 +1,11 @@
+version: "3.8"
+
+# -------------------------------------------------------------
+# Docker Compose: Backend + PostgreSQL Only (ai_node disabled)
+# Usage: docker compose -f docker-compose.yml -f docker-compose.backend-only.yml up -d
+# -------------------------------------------------------------
+
+services:
+  ai_node:
+    profiles:
+      - disabled
