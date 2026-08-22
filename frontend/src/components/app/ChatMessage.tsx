@@ -1,11 +1,12 @@
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Bot, User, BookMarked } from "lucide-react";
+import { Bot, User, BookMarked, Copy, Check, Scale, ShieldAlert } from "lucide-react";
 import { MODE_LABELS } from "@/context/AnalysisContext";
+import { toast } from "sonner";
 
 export function TypingBubble() {
   return (
-    <div className="inline-flex items-center gap-1.5 rounded-2xl border bg-accent px-4 py-3">
+    <div className="inline-flex items-center gap-1.5 rounded-2xl border bg-muted/40 px-4 py-3 shadow-xs">
       {[0, 1, 2].map((i) => (
         <motion.span
           key={i}
@@ -20,55 +21,106 @@ export function TypingBubble() {
 
 export function Message({ m }) {
   const isUser = m.role === "user";
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!m.content) return;
+    await navigator.clipboard.writeText(m.content);
+    setCopied(true);
+    toast.success("Pesan disalin ke clipboard.");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (isUser) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+        className="flex w-full justify-end"
+      >
+        <div className="max-w-[82%] rounded-2xl rounded-tr-xs bg-primary px-4 py-2.5 text-sm leading-relaxed text-primary-foreground shadow-sm">
+          <div className="whitespace-pre-wrap select-text">{m.content}</div>
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-      className={`flex gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}
+      transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+      className="flex w-full items-start gap-3 group"
     >
-      <div
-        className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${
-          isUser ? "bg-secondary text-secondary-foreground" : "bg-primary text-primary-foreground"
-        }`}
-      >
-        {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+      <div className="grid h-7 w-7 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-xs mt-0.5">
+        <Scale className="h-4 w-4" />
       </div>
-      <div className={`max-w-[85%] ${isUser ? "items-end text-right" : ""}`}>
-        <div className="mb-0.5 text-[11px] text-muted-foreground">
-          {isUser ? "Kamu" : "PasalBerapa?"}
-          {m.mode && !isUser ? ` · ${MODE_LABELS[m.mode] || ""}` : ""}
+
+      <div className="flex-1 min-w-0 space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-foreground">PasalBerapa?</span>
+          {m.mode && (
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+              {MODE_LABELS[m.mode] || m.mode}
+            </span>
+          )}
         </div>
+
         <div
-          className={`inline-block whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-left text-sm leading-6 ${
-            isUser
-              ? "bg-secondary text-secondary-foreground"
-              : m.error
-              ? "border border-destructive/30 bg-[hsl(var(--risk-high-bg))] text-foreground"
-              : "border bg-accent text-foreground"
+          className={`rounded-2xl rounded-tl-xs px-4 py-3 text-sm leading-relaxed ${
+            m.error
+              ? "border border-destructive/40 bg-destructive/10 text-destructive dark:text-red-300 font-medium"
+              : "border bg-card/60 backdrop-blur text-foreground shadow-xs"
           }`}
         >
-          {m.content}
+          <div className="whitespace-pre-wrap select-text text-sm leading-6">
+            {m.content}
+          </div>
+
+          {/* Citations / Legal references */}
+          {Array.isArray(m.citations) && m.citations.length > 0 && (
+            <div className="mt-3 pt-3 border-t space-y-1.5">
+              <div className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
+                <BookMarked className="h-3.5 w-3.5 text-primary" />
+                <span>Rujukan Pasal &amp; Regulasi:</span>
+              </div>
+              <div className="grid gap-1.5 sm:grid-cols-2">
+                {m.citations.map((c, i) => (
+                  <a
+                    key={i}
+                    href={c.url || undefined}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex flex-col rounded-lg border bg-background/80 p-2 text-left text-xs transition-colors hover:border-primary hover:bg-accent/40"
+                  >
+                    <span className="font-semibold text-primary">
+                      {c.regulation} {c.article}
+                    </span>
+                    {c.snippet && (
+                      <span className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+                        {c.snippet}
+                      </span>
+                    )}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-        {Array.isArray(m.citations) && m.citations.length > 0 && (
-          <div className="mt-1.5 space-y-1">
-            {m.citations.map((c, i) => (
-              <a
-                key={i}
-                href={c.url || undefined}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-start gap-1.5 rounded-lg border bg-card px-2 py-1.5 text-left text-[11px] text-muted-foreground hover:border-primary"
-              >
-                <BookMarked className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
-                <span>
-                  <span className="font-medium text-foreground">
-                    {c.regulation} {c.article}
-                  </span>
-                  {c.snippet ? ` — ${c.snippet}` : ""}
-                </span>
-              </a>
-            ))}
+
+        {/* Action buttons (Copy) */}
+        {!m.error && (
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors"
+              title="Salin jawaban"
+            >
+              {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+              <span>{copied ? "Tersalin" : "Salin"}</span>
+            </button>
           </div>
         )}
       </div>

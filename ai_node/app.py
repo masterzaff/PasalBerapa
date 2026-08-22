@@ -23,6 +23,7 @@ import masker
 import retriever
 import prompts
 import llm
+import tools
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("pasalberapa.app")
@@ -89,14 +90,6 @@ async def search(req: SearchReq):
     return {"results": results}
 
 
-def _build_rag_query(req: AnalyzeReq) -> str:
-    if req.mode == "chat" and req.question:
-        return req.question
-    # untuk mode dokumen, pakai potongan awal dokumen + pertanyaan (bila ada)
-    base = (req.question or "") + " " + (req.masked_text or "")[:1500]
-    return base.strip()
-
-
 @app.post("/analyze")
 async def analyze(req: AnalyzeReq):
     if not llm.is_configured():
@@ -105,24 +98,39 @@ async def analyze(req: AnalyzeReq):
             detail="LLM belum dikonfigurasi di AI Node. Set LLM_BASE_URL & LLM_API_KEY.",
         )
 
-    # 1) RAG retrieval (best-effort; kegagalan retrieval tidak boleh mematikan analisis)
-    citations: List[Dict] = []
-    try:
-        rag_query = _build_rag_query(req)
-        citations = retriever.search(rag_query, req.top_k)
-    except Exception as e:
-        logger.warning("[analyze] retrieval gagal, lanjut tanpa RAG: %s", e)
+    doc_lines = (req.masked_text or "").splitlines()
 
-    # 2) Susun prompt & panggil LLM
+    # Dynamic tool executor callback for Agentic ReAct loop
+    def execute_tool(name: str, args: Dict[str, Any]) -> Any:
+        if name == "search_indonesian_law":
+            q = args.get("query") or ""
+            reg = args.get("regulation")
+            return tools.execute_search_law(q, regulation=reg, top_k=req.top_k)
+        elif name == "search_user_document":
+            q = args.get("query") or ""
+            return tools.execute_search_user_doc(q, doc_lines=doc_lines)
+        elif name == "read_document_lines":
+            s_line = int(args.get("start_line", 1))
+            e_line = int(args.get("end_line", s_line + 30))
+            return tools.execute_read_lines(s_line, e_line, doc_lines=doc_lines)
+        return {"error": f"Tool '{name}' tidak dikenal."}
+
+    # 1) Susun prompt awal (LLM otonom memutuskan apakah perlu memanggil tool atau langsung menjawab)
     messages = prompts.build_messages(
         masked_text=req.masked_text,
         mode=req.mode,
         question=req.question,
         history=req.history,
-        citations=citations,
     )
+
+    # 2) Jalankan Agentic ReAct Tool Calling loop
     try:
-        parsed = llm.chat_json(messages)
+        parsed, citations = llm.chat_agentic(
+            messages=messages,
+            tools=tools.LEGAL_TOOLS_SCHEMA,
+            tool_executor=execute_tool,
+            max_steps=3
+        )
     except llm.LLMNotConfigured as e:
         raise HTTPException(status_code=503, detail=str(e))
     except llm.LLMError as e:

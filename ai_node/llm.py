@@ -18,7 +18,7 @@ import os
 import re
 import json
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
 
 import httpx
 
@@ -72,6 +72,90 @@ def _extract_json(text: str) -> Dict[str, Any]:
     return {"reply": text}
 
 
+def _parse_chat_response(text: str) -> Dict[str, Any]:
+    """Parse respons baik berupa JSON tunggal standar, JSON dengan trailing data: [DONE], maupun stream SSE."""
+    text = (text or "").strip()
+    if not text:
+        return {"choices": [{"message": {"role": "assistant", "content": ""}}]}
+    
+    # 1. Bersihkan trailing "data: [DONE]" atau "[DONE]" jika ada di akhir teks
+    cleaned = re.sub(r"(?:data:\s*)?\[DONE\]\s*$", "", text, flags=re.IGNORECASE).strip()
+
+    # 2. Coba decode JSON utuh langsung
+    try:
+        data = json.loads(cleaned)
+        if isinstance(data, dict):
+            if "error" in data:
+                err_msg = data["error"].get("message") if isinstance(data["error"], dict) else str(data["error"])
+                raise LLMError(f"LLM Error: {err_msg}")
+            return data
+    except Exception:
+        pass
+
+    # 3. Coba ekstrak blok JSON pertama {...} jika ada data/karakter tambahan di belakangnya
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        try:
+            data = json.loads(cleaned[start:end+1])
+            if isinstance(data, dict) and ("choices" in data or "error" in data):
+                if "error" in data:
+                    err_msg = data["error"].get("message") if isinstance(data["error"], dict) else str(data["error"])
+                    raise LLMError(f"LLM Error: {err_msg}")
+                return data
+        except Exception:
+            pass
+
+    # 4. Jika murni format SSE stream chunk (data: {"choices": [{"delta": ...}]})
+    combined_content = []
+    tool_calls_map = {}
+
+    for line in text.splitlines():
+        line = line.strip()
+        if not line.startswith("data:"):
+            continue
+        chunk_str = line[5:].strip()
+        if chunk_str in ("[DONE]", ""):
+            continue
+        try:
+            chunk = json.loads(chunk_str)
+            choices = chunk.get("choices", [])
+            if not choices:
+                continue
+            delta = choices[0].get("delta", {})
+            if "content" in delta and delta["content"]:
+                combined_content.append(delta["content"])
+            if "tool_calls" in delta and delta["tool_calls"]:
+                for tc in delta["tool_calls"]:
+                    idx = tc.get("index", 0)
+                    if idx not in tool_calls_map:
+                        tool_calls_map[idx] = {
+                            "id": tc.get("id", f"call_{idx}"),
+                            "type": "function",
+                            "function": {"name": "", "arguments": ""}
+                        }
+                    fn = tc.get("function", {})
+                    if "name" in fn and fn["name"]:
+                        tool_calls_map[idx]["function"]["name"] += fn["name"]
+                    if "arguments" in fn and fn["arguments"]:
+                        tool_calls_map[idx]["function"]["arguments"] += fn["arguments"]
+        except Exception:
+            continue
+
+    tool_calls_list = list(tool_calls_map.values()) if tool_calls_map else None
+    return {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": "".join(combined_content),
+                    **({"tool_calls": tool_calls_list} if tool_calls_list else {})
+                }
+            }
+        ]
+    }
+
+
 def _raw_chat(messages: List[Dict], response_format_json: bool) -> str:
     if not is_configured():
         raise LLMNotConfigured(
@@ -94,7 +178,8 @@ def _raw_chat(messages: List[Dict], response_format_json: bool) -> str:
         resp = client.post(url, json=payload, headers=headers)
     if resp.status_code >= 400:
         raise LLMError(f"HTTP {resp.status_code}: {resp.text[:500]}")
-    data = resp.json()
+    
+    data = _parse_chat_response(resp.text)
     try:
         return data["choices"][0]["message"]["content"]
     except Exception as e:
@@ -109,12 +194,124 @@ def chat_json(messages: List[Dict]) -> Dict[str, Any]:
         content = _raw_chat(messages, response_format_json=True)
     except LLMError as e:
         msg = str(e)
-        if msg.startswith("HTTP 4"):
+        if msg.startswith("HTTP 4") or "json" in msg.lower():
             logger.info("[llm] response_format json_object ditolak, retry polos. (%s)", msg[:120])
             content = _raw_chat(messages, response_format_json=False)
         else:
             raise
     return _extract_json(content)
+
+
+def chat_agentic(
+    messages: List[Dict],
+    tools: Optional[List[Dict]] = None,
+    tool_executor: Optional[Any] = None,
+    max_steps: int = 3
+) -> tuple:
+    """Menjalankan loop Agentic Tool Calling (ReAct) hingga LLM menghasilkan jawaban JSON akhir.
+    Mengembalikan: (parsed_json_dict, collected_citations_list)"""
+    if not is_configured():
+        raise LLMNotConfigured(
+            "LLM belum dikonfigurasi. Set LLM_BASE_URL & LLM_API_KEY di environment."
+        )
+
+    if not tools or not tool_executor:
+        return chat_json(messages), []
+
+    url = f"{LLM_BASE_URL}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {LLM_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    
+    current_messages = list(messages)
+    collected_citations: List[Dict[str, Any]] = []
+
+    with httpx.Client(timeout=LLM_TIMEOUT) as client:
+        for step in range(max_steps):
+            payload: Dict[str, Any] = {
+                "model": LLM_MODEL,
+                "messages": current_messages,
+                "temperature": LLM_TEMPERATURE,
+            }
+            if tools:
+                payload["tools"] = tools
+                payload["tool_choice"] = "auto"
+
+            try:
+                resp = client.post(url, json=payload, headers=headers)
+            except Exception as e:
+                logger.error("[llm] Gagal request agentic chat: %s", e)
+                raise LLMError(f"Koneksi LLM error: {e}")
+
+            if resp.status_code >= 400:
+                # Jika endpoint model tidak mendukung tools schema, fallback ke chat_json standar
+                if "tool" in resp.text.lower() or resp.status_code in (400, 422):
+                    logger.warning("[llm] Tool calling ditolak endpoint, fallback ke chat_json standar: %s", resp.text[:200])
+                    return chat_json(messages), collected_citations
+                raise LLMError(f"HTTP {resp.status_code}: {resp.text[:500]}")
+
+            data = _parse_chat_response(resp.text)
+            choice = data["choices"][0]["message"]
+            tool_calls = choice.get("tool_calls")
+
+            # Jika LLM memutuskan untuk memanggil tool
+            if tool_calls and tool_executor:
+                current_messages.append(choice)
+                for tc in tool_calls:
+                    call_id = tc["id"]
+                    func = tc["function"]
+                    fname = func["name"]
+                    fargs_str = func.get("arguments", "{}")
+                    try:
+                        fargs = json.loads(fargs_str) if isinstance(fargs_str, str) else (fargs_str or {})
+                    except Exception:
+                        fargs = {}
+
+                    logger.info("[agent] Step %d: Memanggil tool %s(%s)", step + 1, fname, fargs)
+                    tool_result = tool_executor(fname, fargs)
+                    
+                    # Simpan citations jika ada hasil pasal hukum dari tool
+                    if fname == "search_indonesian_law" and isinstance(tool_result, dict) and tool_result.get("results"):
+                        for r in tool_result["results"]:
+                            if r not in collected_citations:
+                                collected_citations.append(r)
+
+                    current_messages.append({
+                        "role": "tool",
+                        "tool_call_id": call_id,
+                        "name": fname,
+                        "content": json.dumps(tool_result, ensure_ascii=False)
+                    })
+                # Lanjutkan ke loop berikutnya agar LLM membaca hasil tool
+                continue
+
+            # Jika LLM sudah menghasilkan jawaban akhir (tanpa tool calls)
+            content = choice.get("content") or ""
+            return _extract_json(content), collected_citations
+
+    # Jika loop selesai mencapai batas max_steps, minta jawaban JSON final
+    logger.info("[agent] Mencapai batas max_steps (%d), meminta jawaban JSON final...", max_steps)
+    try:
+        current_messages.append({
+            "role": "user",
+            "content": "Sekarang susun kesimpulan analisis final kamu sesuai skema JSON yang diminta."
+        })
+        final_resp = client.post(url, json={
+            "model": LLM_MODEL,
+            "messages": current_messages,
+            "temperature": LLM_TEMPERATURE,
+            "response_format": {"type": "json_object"}
+        }, headers=headers)
+        
+        if final_resp.status_code == 200:
+            parsed_final = _parse_chat_response(final_resp.text)
+            raw_content = parsed_final["choices"][0]["message"]["content"]
+            return _extract_json(raw_content), collected_citations
+    except Exception as e:
+        logger.warning("[agent] Gagal mengambil final response: %s", e)
+
+    return chat_json(messages), collected_citations
 
 
 def status() -> Dict[str, Any]:

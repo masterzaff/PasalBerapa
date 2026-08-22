@@ -248,7 +248,7 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
 
           <Button
             type="button" data-testid="chat-send-button" onClick={send}
-            disabled={disabled || !input.trim()} size="icon"
+            disabled={Boolean(disabled || !input.trim())} size="icon"
             className="h-10 w-10 shrink-0 rounded-full"
           >
             {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}

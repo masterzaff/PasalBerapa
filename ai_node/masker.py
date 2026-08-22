@@ -100,8 +100,7 @@ def _build_analyzer():
         }
         provider = NlpEngineProvider(nlp_configuration=nlp_configuration)
         nlp_engine = provider.create_engine()
-
-        registry = RecognizerRegistry()
+        registry = RecognizerRegistry(supported_languages=[PII_LANG])
         # NER dari spaCy (PERSON / LOCATION / ORGANIZATION)
         registry.add_recognizer(SpacyRecognizer(supported_language=PII_LANG))
         # Email (pattern, language-agnostic) — daftarkan utk 'id'

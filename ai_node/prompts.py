@@ -54,8 +54,9 @@ Balas HANYA JSON dengan struktur ini (field opsional boleh null / [] ):
 
 _MODE_INSTRUCTIONS = {
     "chat": (
-        "MODE: chat. Jawab pertanyaan user secara langsung & santai. Kalau ada "
-        "dokumen, kaitkan dengan klausulnya. Fokus di field 'reply'. 'risks' boleh []."
+        "MODE: chat. Jawab sapaan atau pertanyaan user secara langsung, ramah, dan santai. "
+        "Jika user hanya menyapa (seperti 'halo', 'hi', 'selamat pagi', 'kamu siapa?'), sambut dengan ramah dan jelaskan secara ringkas bagaimana kamu bisa membantu mereka (konsultasi pasal hukum Indonesia, hak pekerja, bedah risiko draf kontrak, dsb). "
+        "Jika user menanyakan hal hukum atau ada dokumen, kaitkan penjelasannya dengan klausul atau pasal terkait. Fokus di field 'reply'. 'risks' boleh []."
     ),
     "summary": (
         "MODE: summary. Ringkas isi dokumen: para pihak, kewajiban utama, hak, "
@@ -107,14 +108,12 @@ def build_messages(
     mode: str,
     question: Optional[str],
     history: Optional[List[Dict]],
-    citations: List[Dict],
-    max_doc_chars: int = 12000,
+    citations: Optional[List[Dict]] = None,
+    preview_lines: int = 50,
 ) -> List[Dict]:
     mode = mode if mode in _MODE_INSTRUCTIONS else "chat"
-    doc = (masked_text or "").strip()
-    if len(doc) > max_doc_chars:
-        doc = doc[:max_doc_chars] + "\n...[dokumen dipotong]..."
-
+    raw_doc = (masked_text or "").strip()
+    
     parts = [_MODE_INSTRUCTIONS[mode], _SCHEMA_DOC.strip()]
 
     hist = _format_history(history)
@@ -124,12 +123,25 @@ def build_messages(
     if question:
         parts.append("PERTANYAAN USER:\n" + question.strip())
 
-    if doc:
-        parts.append("DOKUMEN (SUDAH TER-MASK, jaga semua tag <...>):\n" + doc)
+    if raw_doc:
+        doc_lines = raw_doc.splitlines()
+        total_lines = len(doc_lines)
+        if total_lines <= preview_lines:
+            doc_block = raw_doc
+        else:
+            first_chunk = "\n".join(doc_lines[:preview_lines])
+            doc_block = (
+                f"{first_chunk}\n\n"
+                f"--- [DOKUMEN INI MEMILIKI TOTAL {total_lines} BARIS. Di atas adalah {preview_lines} baris pertama sebagai pengantar. "
+                f"Gunakan tool 'search_user_document' untuk mencari topik/klausul spesifik atau 'read_document_lines(start_line, end_line)' "
+                f"untuk membaca baris lanjutan dokumen secara presisi.] ---"
+            )
+        parts.append("DOKUMEN KONTRAK (SUDAH TER-MASK, WAJIB jaga semua tag <...>):\n" + doc_block)
     else:
-        parts.append("(Tidak ada dokumen dilampirkan — jawab secara umum & aman.)")
+        parts.append("(Tidak ada dokumen dilampirkan — jawab konsultasi hukum umum secara ramah & akurat.)")
 
-    parts.append("KUTIPAN PERATURAN (hasil RAG, gunakan bila relevan):\n" + _format_citations(citations))
+    if citations:
+        parts.append("KUTIPAN PERATURAN AWAL (hasil pencarian dasar):\n" + _format_citations(citations))
 
     user_content = "\n\n".join(parts)
     return [

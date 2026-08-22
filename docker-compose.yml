@@ -59,6 +59,9 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
     volumes:
       - ai_node_data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "edge:100.105.136.106"
     ports:
       - "${AI_NODE_PORT:-8001}:8000"
 
