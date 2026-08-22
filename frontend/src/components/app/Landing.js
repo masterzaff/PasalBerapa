@@ -4,7 +4,7 @@ import {
   Shield, ScanText, TriangleAlert, UploadCloud, Loader2,
   Briefcase, Home, FileLock2, ChevronDown, TrendingUp, Clock,
   Coins, Building2, Users, FileSpreadsheet, Sparkles, CheckCircle2,
-  ArrowRight, Lock, Server, Check, User
+  ArrowRight, Lock, Server, Check, User, Eye, EyeOff
 } from "lucide-react";
 import { toast } from "sonner";
 import ChatComposer from "@/components/app/ChatComposer";
@@ -94,6 +94,77 @@ function GlitchingTagChip({ original, redacted, delay = 0, cls = "" }) {
         {displayText}
       </span>
     </motion.div>
+  );
+}
+
+// --- REDACTION COMPARISON DEMO CARD ---
+function RedactionDemoCard({ isBisnis }) {
+  return (
+    <div className="mt-8 overflow-hidden rounded-2xl border bg-card shadow-sm">
+      <div className="border-b bg-muted/40 px-5 py-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-primary animate-pulse" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-foreground">
+            {isBisnis ? "Simulasi PII Redaction Otomatis (UU PDP)" : "Simulasi Penyamaran Data Otomatis"}
+          </span>
+        </div>
+        <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+          100% Berjalan di Browser Anda
+        </span>
+      </div>
+
+      <div className="p-5 sm:p-6 grid gap-5 md:grid-cols-2 items-stretch">
+        {/* Sisi Kiri: Yang Anda Lihat */}
+        <div className="flex flex-col justify-between rounded-xl border border-red-500/20 bg-red-500/[0.03] p-4 sm:p-5">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wide">
+              <Eye className="h-4 w-4" />
+              <span>Anda Melihat (Data Asli di Layar)</span>
+            </div>
+            <p className="mt-3 font-mono text-xs sm:text-[13px] leading-relaxed text-foreground/90 bg-background/80 p-3.5 rounded-lg border border-red-500/15 shadow-inner">
+              {isBisnis ? (
+                <>
+                  “PT Solusi Maju (<span className="bg-red-500/15 text-red-700 dark:text-red-300 px-1 py-0.5 rounded font-semibold">NPWP: 01.345.678.9-012.000</span>) sepakat membayar total kontrak sebesar <span className="bg-red-500/15 text-red-700 dark:text-red-300 px-1 py-0.5 rounded font-semibold">Rp 350.000.000</span> via transfer Mandiri <span className="bg-red-500/15 text-red-700 dark:text-red-300 px-1 py-0.5 rounded font-semibold">137-00-1234567-8</span> a.n. <span className="bg-red-500/15 text-red-700 dark:text-red-300 px-1 py-0.5 rounded font-semibold">Hendra Wijaya</span>.”
+                </>
+              ) : (
+                <>
+                  “Pihak Kedua atas nama <span className="bg-red-500/15 text-red-700 dark:text-red-300 px-1 py-0.5 rounded font-semibold">Budi Santoso</span> (<span className="bg-red-500/15 text-red-700 dark:text-red-300 px-1 py-0.5 rounded font-semibold">NIK: 3171012345670001</span>) menerima gaji bulanan sebesar <span className="bg-red-500/15 text-red-700 dark:text-red-300 px-1 py-0.5 rounded font-semibold">Rp 12.500.000</span> yang ditransfer ke rekening BCA <span className="bg-red-500/15 text-red-700 dark:text-red-300 px-1 py-0.5 rounded font-semibold">527-123-4567</span>.”
+                </>
+              )}
+            </p>
+          </div>
+          <p className="mt-3 text-[11px] text-muted-foreground flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
+            Data rahasia &amp; identitas asli hanya tersimpan di perangkat lokal Anda.
+          </p>
+        </div>
+
+        {/* Sisi Kanan: Yang Kami / AI Lihat */}
+        <div className="flex flex-col justify-between rounded-xl border border-emerald-500/25 bg-emerald-500/[0.04] p-4 sm:p-5">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
+              <EyeOff className="h-4 w-4" />
+              <span>Kami / AI Melihat (Telah Disamarkan)</span>
+            </div>
+            <p className="mt-3 font-mono text-xs sm:text-[13px] leading-relaxed text-foreground/90 bg-background/80 p-3.5 rounded-lg border border-emerald-500/20 shadow-inner">
+              {isBisnis ? (
+                <>
+                  “PT Solusi Maju (<span className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-1 py-0.5 rounded font-semibold">&lt;NOMOR_NPWP&gt;</span>) sepakat membayar total kontrak sebesar <span className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-1 py-0.5 rounded font-semibold">&lt;NILAI_KONTRAK&gt;</span> via transfer Mandiri <span className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-1 py-0.5 rounded font-semibold">&lt;NOMOR_REKENING&gt;</span> a.n. <span className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-1 py-0.5 rounded font-semibold">&lt;DIREKTUR_UTAMA&gt;</span>.”
+                </>
+              ) : (
+                <>
+                  “Pihak Kedua atas nama <span className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-1 py-0.5 rounded font-semibold">&lt;NAMA_LENGKAP&gt;</span> (<span className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-1 py-0.5 rounded font-semibold">&lt;NOMOR_NIK&gt;</span>) menerima gaji bulanan sebesar <span className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-1 py-0.5 rounded font-semibold">&lt;NOMINAL_GAJI&gt;</span> yang ditransfer ke rekening BCA <span className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-1 py-0.5 rounded font-semibold">&lt;NOMOR_REKENING&gt;</span>.”
+                </>
+              )}
+            </p>
+          </div>
+          <p className="mt-3 text-[11px] text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-1.5">
+            <Check className="h-3.5 w-3.5 shrink-0" />
+            AI membedah pasal hukum tanpa pernah menerima data identitas asli Anda.
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -379,7 +450,7 @@ export default function Landing({ onOpenAuth }) {
         <div className="pointer-events-none absolute inset-0 hero-mist" aria-hidden />
 
         <div className="relative mx-auto w-full max-w-4xl text-center">
-          
+
           {/* Ambient floating chips */}
           {activeFloatTags.map((f, i) => (
             <GlitchingTagChip
@@ -397,12 +468,10 @@ export default function Landing({ onOpenAuth }) {
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
-              className="relative z-10 mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-accent/50 px-4 py-1 text-xs font-semibold text-accent-foreground backdrop-blur-sm"
+              className="relative z-10 mb-4 inline-flex items-center justify-center gap-2 rounded-full border border-primary/25 bg-accent/50 px-3.5 py-1.5 text-xs font-semibold text-accent-foreground backdrop-blur-sm leading-none"
             >
-              <Shield className="h-3.5 w-3.5 text-primary" />
-              <span>AI Legal Risk Platform untuk Bisnis &amp; UMKM</span>
-              <span className="hidden sm:inline text-muted-foreground">·</span>
-              <span className="hidden sm:inline font-mono text-[11px] text-primary">UU PDP Compliant</span>
+              <Shield className="h-3.5 w-3.5 text-primary shrink-0 self-center" />
+              <span className="leading-none self-center">AI Legal Risk Platform untuk Bisnis &amp; UMKM</span>
             </motion.div>
           )}
 
@@ -415,9 +484,10 @@ export default function Landing({ onOpenAuth }) {
           >
             {isBisnis ? (
               <>
-                <h1 className="font-display text-[2.5rem] font-semibold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
-                  Review Kontrak Bisnis 10x Lebih Cepat.<br className="hidden sm:block" />
-                  <span className="marker-underline">Nol Risiko Bocor.</span>
+                <h1 className="font-display text-[2.2rem] sm:text-[2.75rem] lg:text-[3.5rem] font-semibold leading-[1.12] tracking-tight text-balance">
+                  Review Kontrak Bisnis{" "}
+                  <span className="whitespace-nowrap">10x Lebih Cepat.</span>{" "}
+                  <span className="marker-underline whitespace-nowrap">100% Data Terlindungi.</span>
                 </h1>
                 <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
                   Bedah klausul penalti sepihak, red flags, dan pasal berisiko pada <strong>PKWT, Vendor Agreement, NDA, &amp; Sewa Ruko</strong> secara instan. Tanpa biaya retainer jutaan rupiah, dengan proteksi data pribadi berbasis client-side masking.
@@ -654,6 +724,9 @@ export default function Landing({ onOpenAuth }) {
                   </p>
                 </div>
               </div>
+
+              {/* Redaction comparison demo for Business */}
+              <RedactionDemoCard isBisnis={true} />
             </div>
           </section>
 
@@ -765,6 +838,9 @@ export default function Landing({ onOpenAuth }) {
                   </div>
                 ))}
               </div>
+
+              {/* Redaction comparison demo for Personal */}
+              <RedactionDemoCard isBisnis={false} />
             </div>
           </section>
 
@@ -797,4 +873,3 @@ export default function Landing({ onOpenAuth }) {
     </div>
   );
 }
-
