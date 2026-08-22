@@ -21,6 +21,7 @@ export const authApi = {
   me: (token) => req("/auth/me", { token }),
   listConversations: (token) => req("/conversations", { token }),
   saveConversation: (b, token) => req("/conversations", { method: "POST", body: b, token }),
+  updateConversation: (id, b, token) => req(`/conversations/${id}`, { method: "PUT", body: b, token }),
   getConversation: (id, token) => req(`/conversations/${id}`, { token }),
   deleteConversation: (id, token) => req(`/conversations/${id}`, { method: "DELETE", token }),
 };

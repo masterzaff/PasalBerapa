@@ -1,10 +1,13 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { FileText, Gauge, Lock, Bot, FileCheck2, Scale, Save, Loader2 } from "lucide-react";
+import { FileText, Gauge, Lock, Bot, FileCheck2, Scale, Loader2, MoreVertical, Pencil, Trash2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import ChatComposer from "@/components/app/ChatComposer";
 import { Message, TypingBubble } from "@/components/app/ChatMessage";
@@ -36,24 +39,85 @@ export default function ChatView({ onOpenAuth }) {
   const { user, token } = useAuth();
   const feedRef = useRef(null);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [convId, setConvId] = useState(null);
+  const [convTitle, setConvTitle] = useState(null);
+  const savingRef = useRef(false);
 
   useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
   }, [s.messages, analyzing]);
 
-  const save = async () => {
+  const firstUserMsg = s.messages.find((m) => m.role === "user");
+  const headerTitle =
+    convTitle ||
+    s.file?.name ||
+    (firstUserMsg && firstUserMsg.content ? firstUserMsg.content.slice(0, 50) : null) ||
+    "Obrolan hukum";
+
+  const persist = useCallback(
+    async (titleOverride) => {
+      if (!user || s.messages.length === 0 || savingRef.current) return;
+      savingRef.current = true;
+      setSaving(true);
+      try {
+        const title =
+          titleOverride ||
+          convTitle ||
+          s.file?.name ||
+          (firstUserMsg && firstUserMsg.content ? firstUserMsg.content.slice(0, 60) : "Percakapan");
+        if (convId) {
+          await authApi.updateConversation(convId, { title, messages: s.messages }, token);
+        } else {
+          const res = await authApi.saveConversation(
+            { title, messages: s.messages, doc_name: s.file?.name || null },
+            token
+          );
+          setConvId(res.id);
+        }
+        if (titleOverride) setConvTitle(titleOverride);
+        setSaved(true);
+        return true;
+      } catch (e) {
+        return false;
+      } finally {
+        savingRef.current = false;
+        setSaving(false);
+      }
+    },
+    [user, s.messages, s.file, convId, convTitle, token, firstUserMsg]
+  );
+
+  // Autosave: simpan otomatis tiap ada pesan baru (kalau sudah login).
+  useEffect(() => {
+    if (!user || analyzing || s.messages.length === 0) return;
+    const t = setTimeout(() => { persist(); }, 1000);
+    return () => clearTimeout(t);
+  }, [s.messages, analyzing, user, persist]);
+
+  const rename = async () => {
     if (!user) { onOpenAuth(); return; }
-    if (saving || s.messages.length === 0) return;
-    setSaving(true);
+    const next = window.prompt("Judul percakapan:", headerTitle);
+    if (next == null) return;
+    const title = next.trim();
+    if (!title) return;
+    const ok = await persist(title);
+    if (ok) toast.success("Judul diganti.");
+    else toast.error("Gagal ganti judul.");
+  };
+
+  const remove = async () => {
+    if (!user) { onOpenAuth(); return; }
     try {
-      const firstUser = s.messages.find((m) => m.role === "user");
-      const title = s.file?.name || (firstUser && firstUser.content ? firstUser.content.slice(0, 60) : "Percakapan");
-      await authApi.saveConversation({ title, messages: s.messages, doc_name: s.file?.name || null }, token);
-      toast.success("Percakapan disimpan ke akunmu.");
+      if (convId) await authApi.deleteConversation(convId, token);
+      toast.success("Percakapan dihapus.");
     } catch (e) {
-      toast.error(e.message || "Gagal menyimpan.");
+      toast.error(e.message || "Gagal hapus.");
     } finally {
-      setSaving(false);
+      setConvId(null);
+      setConvTitle(null);
+      setSaved(false);
+      s.resetSession();
     }
   };
 
@@ -63,27 +127,45 @@ export default function ChatView({ onOpenAuth }) {
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-2 px-4 py-2">
           <div className="flex min-w-0 items-center gap-2 text-sm">
             {s.hasDocument ? (
-              <>
-                <FileCheck2 className="h-4 w-4 shrink-0 text-primary" />
-                <span className="truncate font-medium">{s.file?.name}</span>
-                {s.extractInfo && (
-                  <Badge variant="secondary" className="shrink-0 text-[10px]">
-                    {s.extractInfo.totalPages} hlm{s.extractInfo.usedOcr ? " · OCR" : ""}
-                  </Badge>
-                )}
-              </>
+              <FileCheck2 className="h-4 w-4 shrink-0 text-primary" />
             ) : (
-              <>
-                <Scale className="h-4 w-4 shrink-0 text-primary" />
-                <span className="font-medium">Obrolan hukum</span>
-              </>
+              <Scale className="h-4 w-4 shrink-0 text-primary" />
+            )}
+            <span className="truncate font-medium" data-testid="conversation-title">{headerTitle}</span>
+            {s.hasDocument && s.extractInfo && (
+              <Badge variant="secondary" className="shrink-0 text-[10px]">
+                {s.extractInfo.totalPages} hlm{s.extractInfo.usedOcr ? " · OCR" : ""}
+              </Badge>
+            )}
+            {user && s.messages.length > 0 && (
+              <span className="hidden shrink-0 items-center gap-1 text-[11px] text-muted-foreground sm:inline-flex" data-testid="autosave-indicator">
+                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : saved ? <Check className="h-3 w-3 text-[hsl(var(--risk-safe))]" /> : null}
+                {saving ? "Menyimpan…" : saved ? "Tersimpan" : ""}
+              </span>
             )}
           </div>
           <div className="flex items-center gap-1.5">
-            <Button variant="ghost" size="sm" onClick={save} disabled={saving || s.messages.length === 0} data-testid="save-conversation-button" className="gap-1.5">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              <span className="hidden sm:inline">Simpan</span>
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  data-testid="manage-conversation-button"
+                  disabled={s.messages.length === 0}
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onClick={rename} data-testid="menu-rename">
+                  <Pencil className="mr-2 h-4 w-4" /> Ganti judul
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={remove} data-testid="menu-delete" className="text-destructive focus:text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" /> Hapus
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {s.hasDocument && (
               <>
                 <PanelButton onClick={() => ui.openPanel("doc")} icon={FileText} label="Dokumen" testId="open-doc-panel-button" />

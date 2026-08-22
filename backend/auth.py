@@ -44,6 +44,11 @@ class ConversationIn(BaseModel):
     doc_name: Optional[str] = None
 
 
+class ConversationUpdate(BaseModel):
+    title: Optional[str] = None
+    messages: Optional[List[Dict[str, Any]]] = None
+
+
 # ---------- Helpers ----------
 def _hash_pw(pw: str) -> str:
     return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -163,6 +168,19 @@ async def get_conversation(conv_id: str, current=Depends(get_current_user)):
         "messages": c.get("messages", []),
         "updated_at": c.get("updated_at"),
     }
+
+
+@auth_router.put("/conversations/{conv_id}")
+async def update_conversation(conv_id: str, body: ConversationUpdate, current=Depends(get_current_user)):
+    upd = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    if body.title is not None:
+        upd["title"] = body.title[:120]
+    if body.messages is not None:
+        upd["messages"] = body.messages
+    res = await conversations.update_one({"id": conv_id, "user_id": current["id"]}, {"$set": upd})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Percakapan nggak ketemu.")
+    return {"ok": True, "title": upd.get("title")}
 
 
 @auth_router.delete("/conversations/{conv_id}")
