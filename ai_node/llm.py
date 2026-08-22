@@ -156,7 +156,7 @@ def _parse_chat_response(text: str) -> Dict[str, Any]:
     }
 
 
-def _raw_chat(messages: List[Dict], response_format_json: bool) -> str:
+def _raw_chat(messages: List[Dict], response_format: Optional[Dict[str, Any]] = None) -> str:
     if not is_configured():
         raise LLMNotConfigured(
             "LLM belum dikonfigurasi. Set LLM_BASE_URL & LLM_API_KEY di environment."
@@ -167,8 +167,8 @@ def _raw_chat(messages: List[Dict], response_format_json: bool) -> str:
         "messages": messages,
         "temperature": LLM_TEMPERATURE,
     }
-    if response_format_json:
-        payload["response_format"] = {"type": "json_object"}
+    if response_format:
+        payload["response_format"] = response_format
 
     headers = {
         "Authorization": f"Bearer {LLM_API_KEY}",
@@ -186,17 +186,98 @@ def _raw_chat(messages: List[Dict], response_format_json: bool) -> str:
         raise LLMError(f"Format respons LLM tak terduga: {e} | {str(data)[:300]}")
 
 
-def chat_json(messages: List[Dict]) -> Dict[str, Any]:
-    """Panggil LLM & kembalikan dict hasil parsing JSON.
-    Coba dulu dengan response_format=json_object; kalau server tidak mendukung
-    (error 400/422), ulangi tanpa response_format."""
+# Mode yang butuh konten terstruktur langsung dari reasoning LLM (risks/citations).
+# Mode lain (chat/summary) cukup teks biasa — lihat prompts.JSON_MODES (harus selaras).
+_JSON_MODES = ("risk", "key_articles")
+
+_RISK_SCHEMA: Dict[str, Any] = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "risk_analysis",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "reply": {"type": "string"},
+                "risk_score": {"type": "integer"},
+                "risks": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "string"},
+                            "level": {"type": "string", "enum": ["high", "warning", "safe"]},
+                            "title": {"type": "string"},
+                            "explanation": {"type": "string"},
+                            "article_refs": {"type": "array", "items": {"type": "string"}},
+                            "suggestion": {"type": "string"},
+                            "source_excerpt": {"type": "string"},
+                        },
+                        "required": ["id", "level", "title", "explanation", "article_refs", "suggestion", "source_excerpt"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["reply", "risk_score", "risks"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+_KEY_ARTICLES_SCHEMA: Dict[str, Any] = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "key_articles_analysis",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "reply": {"type": "string"},
+                "citations": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "regulation": {"type": "string"},
+                            "article": {"type": "string"},
+                            "snippet": {"type": "string"},
+                            "url": {"type": "string"},
+                        },
+                        "required": ["regulation", "article", "snippet", "url"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["reply", "citations"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+
+def _schema_for_mode(mode: str) -> Optional[Dict[str, Any]]:
+    if mode == "risk":
+        return _RISK_SCHEMA
+    if mode == "key_articles":
+        return _KEY_ARTICLES_SCHEMA
+    return None
+
+
+def chat_json(messages: List[Dict], response_schema: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Panggil LLM & kembalikan dict hasil.
+    Kalau `response_schema` diberikan: coba dulu dengan schema itu (strict JSON), retry
+    polos kalau server menolak (400/422). Kalau tidak: minta teks biasa, bungkus sebagai
+    {"reply": ...} tanpa parsing JSON sama sekali."""
+    if response_schema is None:
+        content = _raw_chat(messages, response_format=None)
+        return {"reply": content}
     try:
-        content = _raw_chat(messages, response_format_json=True)
+        content = _raw_chat(messages, response_format=response_schema)
     except LLMError as e:
         msg = str(e)
         if msg.startswith("HTTP 4") or "json" in msg.lower():
-            logger.info("[llm] response_format json_object ditolak, retry polos. (%s)", msg[:120])
-            content = _raw_chat(messages, response_format_json=False)
+            logger.info("[llm] response_format json_schema ditolak, retry polos. (%s)", msg[:120])
+            content = _raw_chat(messages, response_format=None)
         else:
             raise
     return _extract_json(content)
@@ -206,24 +287,29 @@ def chat_agentic(
     messages: List[Dict],
     tools: Optional[List[Dict]] = None,
     tool_executor: Optional[Any] = None,
-    max_steps: int = 3
+    max_steps: int = 3,
+    mode: str = "chat",
 ) -> tuple:
-    """Menjalankan loop Agentic Tool Calling (ReAct) hingga LLM menghasilkan jawaban JSON akhir.
-    Mengembalikan: (parsed_json_dict, collected_citations_list)"""
+    """Menjalankan loop Agentic Tool Calling (ReAct) hingga LLM menghasilkan jawaban akhir.
+    Untuk mode di _JSON_MODES, jawaban akhir di-enforce lewat response_format json_schema
+    (strict). Mode lain (chat/summary) tidak diminta JSON sama sekali — teks mentah jadi 'reply'.
+    Mengembalikan: (result_dict, collected_citations_list)"""
     if not is_configured():
         raise LLMNotConfigured(
             "LLM belum dikonfigurasi. Set LLM_BASE_URL & LLM_API_KEY di environment."
         )
 
+    schema = _schema_for_mode(mode)
+
     if not tools or not tool_executor:
-        return chat_json(messages), []
+        return chat_json(messages, response_schema=schema), []
 
     url = f"{LLM_BASE_URL}/chat/completions"
     headers = {
         "Authorization": f"Bearer {LLM_API_KEY}",
         "Content-Type": "application/json",
     }
-    
+
     current_messages = list(messages)
     collected_citations: List[Dict[str, Any]] = []
 
@@ -237,6 +323,8 @@ def chat_agentic(
             if tools:
                 payload["tools"] = tools
                 payload["tool_choice"] = "auto"
+            if schema:
+                payload["response_format"] = schema
 
             try:
                 resp = client.post(url, json=payload, headers=headers)
@@ -245,10 +333,10 @@ def chat_agentic(
                 raise LLMError(f"Koneksi LLM error: {e}")
 
             if resp.status_code >= 400:
-                # Jika endpoint model tidak mendukung tools schema, fallback ke chat_json standar
+                # Jika endpoint model tidak mendukung tools/response_format, fallback ke chat_json standar
                 if "tool" in resp.text.lower() or resp.status_code in (400, 422):
                     logger.warning("[llm] Tool calling ditolak endpoint, fallback ke chat_json standar: %s", resp.text[:200])
-                    return chat_json(messages), collected_citations
+                    return chat_json(messages, response_schema=schema), collected_citations
                 raise LLMError(f"HTTP {resp.status_code}: {resp.text[:500]}")
 
             data = _parse_chat_response(resp.text)
@@ -270,7 +358,7 @@ def chat_agentic(
 
                     logger.info("[agent] Step %d: Memanggil tool %s(%s)", step + 1, fname, fargs)
                     tool_result = tool_executor(fname, fargs)
-                    
+
                     # Simpan citations jika ada hasil pasal hukum dari tool
                     if fname == "search_indonesian_law" and isinstance(tool_result, dict) and tool_result.get("results"):
                         for r in tool_result["results"]:
@@ -288,30 +376,38 @@ def chat_agentic(
 
             # Jika LLM sudah menghasilkan jawaban akhir (tanpa tool calls)
             content = choice.get("content") or ""
-            return _extract_json(content), collected_citations
+            if schema:
+                return _extract_json(content), collected_citations
+            return {"reply": content}, collected_citations
 
-    # Jika loop selesai mencapai batas max_steps, minta jawaban JSON final
-    logger.info("[agent] Mencapai batas max_steps (%d), meminta jawaban JSON final...", max_steps)
-    try:
-        current_messages.append({
-            "role": "user",
-            "content": "Sekarang susun kesimpulan analisis final kamu sesuai skema JSON yang diminta."
-        })
-        final_resp = client.post(url, json={
-            "model": LLM_MODEL,
-            "messages": current_messages,
-            "temperature": LLM_TEMPERATURE,
-            "response_format": {"type": "json_object"}
-        }, headers=headers)
-        
-        if final_resp.status_code == 200:
-            parsed_final = _parse_chat_response(final_resp.text)
-            raw_content = parsed_final["choices"][0]["message"]["content"]
-            return _extract_json(raw_content), collected_citations
-    except Exception as e:
-        logger.warning("[agent] Gagal mengambil final response: %s", e)
+        # Jika loop selesai mencapai batas max_steps, minta jawaban final
+        # (masih di dalam blok `with` agar `client` belum ditutup)
+        logger.info("[agent] Mencapai batas max_steps (%d), meminta jawaban final...", max_steps)
+        try:
+            wrap_hint = " sesuai skema JSON yang diminta." if schema else "."
+            current_messages.append({
+                "role": "user",
+                "content": "Sekarang susun kesimpulan analisis final kamu" + wrap_hint
+            })
+            final_payload: Dict[str, Any] = {
+                "model": LLM_MODEL,
+                "messages": current_messages,
+                "temperature": LLM_TEMPERATURE,
+            }
+            if schema:
+                final_payload["response_format"] = schema
+            final_resp = client.post(url, json=final_payload, headers=headers)
 
-    return chat_json(messages), collected_citations
+            if final_resp.status_code == 200:
+                parsed_final = _parse_chat_response(final_resp.text)
+                raw_content = parsed_final["choices"][0]["message"]["content"]
+                if schema:
+                    return _extract_json(raw_content), collected_citations
+                return {"reply": raw_content}, collected_citations
+        except Exception as e:
+            logger.warning("[agent] Gagal mengambil final response: %s", e)
+
+    return chat_json(messages, response_schema=schema), collected_citations
 
 
 def status() -> Dict[str, Any]:

@@ -102,18 +102,22 @@ async def analyze(req: AnalyzeReq):
 
     # Dynamic tool executor callback for Agentic ReAct loop
     def execute_tool(name: str, args: Dict[str, Any]) -> Any:
-        if name == "search_indonesian_law":
-            q = args.get("query") or ""
-            reg = args.get("regulation")
-            return tools.execute_search_law(q, regulation=reg, top_k=req.top_k)
-        elif name == "search_user_document":
-            q = args.get("query") or ""
-            return tools.execute_search_user_doc(q, doc_lines=doc_lines)
-        elif name == "read_document_lines":
-            s_line = int(args.get("start_line", 1))
-            e_line = int(args.get("end_line", s_line + 30))
-            return tools.execute_read_lines(s_line, e_line, doc_lines=doc_lines)
-        return {"error": f"Tool '{name}' tidak dikenal."}
+        try:
+            if name == "search_indonesian_law":
+                q = args.get("query") or ""
+                reg = args.get("regulation")
+                return tools.execute_search_law(q, regulation=reg, top_k=req.top_k)
+            elif name == "search_user_document":
+                q = args.get("query") or ""
+                return tools.execute_search_user_doc(q, doc_lines=doc_lines)
+            elif name == "read_document_lines":
+                s_line = int(args.get("start_line", 1))
+                e_line = int(args.get("end_line", s_line + 30))
+                return tools.execute_read_lines(s_line, e_line, doc_lines=doc_lines)
+            return {"error": f"Tool '{name}' tidak dikenal."}
+        except Exception as e:
+            logger.exception("[tool] '%s' gagal dieksekusi: %s", name, e)
+            return {"error": f"Tool '{name}' gagal dieksekusi: {e}"}
 
     # 1) Susun prompt awal (LLM otonom memutuskan apakah perlu memanggil tool atau langsung menjawab)
     messages = prompts.build_messages(
@@ -129,7 +133,8 @@ async def analyze(req: AnalyzeReq):
             messages=messages,
             tools=tools.LEGAL_TOOLS_SCHEMA,
             tool_executor=execute_tool,
-            max_steps=3
+            max_steps=3,
+            mode=req.mode,
         )
     except llm.LLMNotConfigured as e:
         raise HTTPException(status_code=503, detail=str(e))

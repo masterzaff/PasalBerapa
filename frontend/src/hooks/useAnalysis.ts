@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { useSession } from "@/context/SessionContext";
 import { useConnection } from "@/context/ConnectionContext";
 import { maskPII, analyzeDocument, NotConfiguredError } from "@/lib/api";
-import { unmaskText } from "@/lib/pii";
+import { unmaskText, remaskText } from "@/lib/pii";
 
 export const MODE_LABELS = {
   risk: "Bedah Risiko (Red Flags)",
@@ -47,10 +47,11 @@ export function useAnalysis() {
         if (!conn.maskConfigured) {
           toast.warning("Endpoint PII belum diatur — teks dikirim tanpa masking.");
         }
+        const mapping = masked.mapping && Object.keys(masked.mapping).length ? masked.mapping : s.piiMapping;
         const history = s.messages
           .filter((m) => m.role && !m.error)
           .slice(-8)
-          .map((m) => ({ role: m.role, content: m.content }));
+          .map((m) => ({ role: m.role, content: remaskText(m.content, mapping) }));
         const data = await analyzeDocument({
           maskedText: masked.text,
           mode,
@@ -58,7 +59,6 @@ export function useAnalysis() {
           history,
           sessionId: s.sessionId,
         });
-        const mapping = masked.mapping && Object.keys(masked.mapping).length ? masked.mapping : s.piiMapping;
         const replyRaw = data.reply || data.summary || "Selesai.";
         const reply = unmaskText(replyRaw, mapping);
         const citations = (data.citations || []).map((c) => ({

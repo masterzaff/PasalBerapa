@@ -58,7 +58,7 @@ export function AnalysisProvider({ children }) {
         const history = s.messages
           .filter((m) => m.role && !m.error)
           .slice(-8)
-          .map((m) => ({ role: m.role, content: m.content }));
+          .map((m) => ({ role: m.role, content: remaskText(m.content, mapping) }));
 
         const data = await analyzeDocument({
           maskedText: maskedText || "",
