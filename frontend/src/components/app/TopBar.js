@@ -22,9 +22,6 @@ export default function TopBar() {
             <div className="font-display text-lg font-semibold tracking-tight md:text-xl">
               PasalBerapa?
             </div>
-            <div className="hidden text-[11px] text-muted-foreground sm:block">
-              Bedah kontrak tanpa ribet, privasi kejaga.
-            </div>
           </div>
         </div>
 

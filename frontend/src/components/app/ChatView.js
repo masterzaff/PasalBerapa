@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { FileText, Gauge, Lock, Bot, FileCheck2 } from "lucide-react";
+import { FileText, Gauge, Lock, Bot, FileCheck2, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -43,25 +43,39 @@ export default function ChatView() {
       <div className="border-b bg-background/70 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-2 px-4 py-2">
           <div className="flex min-w-0 items-center gap-2 text-sm">
-            <FileCheck2 className="h-4 w-4 shrink-0 text-primary" />
-            <span className="truncate font-medium">{s.file?.name || "Dokumen"}</span>
-            {s.extractInfo && (
-              <Badge variant="secondary" className="shrink-0 text-[10px]">
-                {s.extractInfo.totalPages} hlm{s.extractInfo.usedOcr ? " · OCR" : ""}
-              </Badge>
+            {s.hasDocument ? (
+              <>
+                <FileCheck2 className="h-4 w-4 shrink-0 text-primary" />
+                <span className="truncate font-medium">{s.file?.name}</span>
+                {s.extractInfo && (
+                  <Badge variant="secondary" className="shrink-0 text-[10px]">
+                    {s.extractInfo.totalPages} hlm{s.extractInfo.usedOcr ? " · OCR" : ""}
+                  </Badge>
+                )}
+              </>
+            ) : (
+              <>
+                <Scale className="h-4 w-4 shrink-0 text-primary" />
+                <span className="font-medium">Obrolan hukum</span>
+                <span className="hidden text-xs text-muted-foreground sm:inline">
+                  · lampirin PDF buat bedah dokumen
+                </span>
+              </>
             )}
           </div>
-          <div className="flex items-center gap-1.5">
-            <PanelButton onClick={() => ui.openPanel("doc")} icon={FileText} label="Dokumen" testId="open-doc-panel-button" />
-            <PanelButton onClick={() => ui.openPanel("risk")} icon={Gauge} label="Risiko" count={s.risks.length} testId="open-risk-panel-button" />
-            <PanelButton onClick={() => ui.openPanel("vault")} icon={Lock} label="Vault" count={Object.keys(s.piiMapping || {}).length} testId="open-vault-panel-button" />
-          </div>
+          {s.hasDocument && (
+            <div className="flex items-center gap-1.5">
+              <PanelButton onClick={() => ui.openPanel("doc")} icon={FileText} label="Dokumen" testId="open-doc-panel-button" />
+              <PanelButton onClick={() => ui.openPanel("risk")} icon={Gauge} label="Risiko" count={s.risks.length} testId="open-risk-panel-button" />
+              <PanelButton onClick={() => ui.openPanel("vault")} icon={Lock} label="Vault" count={Object.keys(s.piiMapping || {}).length} testId="open-vault-panel-button" />
+            </div>
+          )}
         </div>
       </div>
 
       <div ref={feedRef} className="scroll-slim min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
-          {s.messages.length === 0 && !analyzing && (
+          {s.hasDocument && s.messages.length === 0 && !analyzing && (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2.5">
               <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
                 <Bot className="h-4 w-4" />
@@ -69,8 +83,8 @@ export default function ChatView() {
               <div className="max-w-[85%] rounded-2xl border bg-accent px-4 py-3 text-sm leading-6">
                 Dokumen <span className="font-medium">{s.file?.name}</span> udah kebaca
                 {s.extractInfo ? ` (${s.extractInfo.totalPages} halaman)` : ""}. Mau mulai dari
-                mana? Klik salah satu chip di bawah — <b>Bedah Risiko</b>, <b>Ringkas Isi</b>,
-                atau <b>Jelaskan Pasal Penting</b> — atau langsung ketik pertanyaanmu.
+                mana? Klik chip di bawah — <b>Bedah Risiko</b>, <b>Ringkas Isi</b>, atau
+                <b> Jelaskan Pasal Penting</b> — atau ketik pertanyaanmu.
               </div>
             </motion.div>
           )}

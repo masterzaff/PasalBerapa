@@ -167,12 +167,22 @@ def _analyze(req: AnalyzeRequest):
             reply = "Kabar baik: aku nggak nemu red flag mencolok di dokumen ini. Tetap baca teliti ya."
     else:  # chat
         q = (req.question or "").strip()
-        reply = (
-            f"Soal '{q}' — berdasarkan dokumen ini, jawabannya tergantung klausul yang "
-            f"berlaku buat {subject}. Secara umum, perhatiin bagian kewajiban & sanksi. "
-            f"Kalau ada denda/penalti, itu yang biasanya bikin repot. Mau aku bedah "
-            f"risikonya sekalian?"
-        )
+        if not text.strip():
+            # General legal Q&A (no document attached)
+            reply = (
+                f"Soal '{q}' \u2014 aku bantu jelasin secara umum ya. Di Indonesia, hal kayak "
+                f"gini biasanya diatur di KUHPerdata / UU terkait. Intinya: pahami hak & "
+                f"kewajibanmu, dan hati-hati sama klausul yang berat sebelah. Kalau kamu "
+                f"punya dokumennya, lampirin PDF-nya (ikon klip) biar aku bedah pasal & "
+                f"red flags-nya langsung dari kontrakmu."
+            )
+        else:
+            reply = (
+                f"Soal '{q}' \u2014 berdasarkan dokumen ini, jawabannya tergantung klausul yang "
+                f"berlaku buat {subject}. Secara umum, perhatiin bagian kewajiban & sanksi. "
+                f"Kalau ada denda/penalti, itu yang biasanya bikin repot. Mau aku bedah "
+                f"risikonya sekalian?"
+            )
 
     return {
         "reply": reply,

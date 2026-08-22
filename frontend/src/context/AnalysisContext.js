@@ -45,9 +45,14 @@ export function AnalysisProvider({ children }) {
       const userContent = question || MODE_LABELS[mode] || "Analisis";
       s.addMessage({ role: "user", mode, content: userContent });
       try {
-        const masked = await ensureMasked();
-        if (!conn.maskConfigured) {
-          toast.warning("Endpoint PII belum diatur — teks dikirim tanpa masking.");
+        // Masking only matters when a document is attached. General legal Q&A
+        // (no document) is sent without any masking step.
+        let masked = { text: "", mapping: {} };
+        if (s.hasDocument) {
+          masked = await ensureMasked();
+          if (!conn.maskConfigured) {
+            toast.warning("Endpoint PII belum diatur — teks dikirim tanpa masking.");
+          }
         }
         const history = s.messages
           .filter((m) => m.role && !m.error)

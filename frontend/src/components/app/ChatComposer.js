@@ -49,11 +49,6 @@ export default function ChatComposer({ variant = "docked", seed }) {
   const send = async () => {
     const q = input.trim();
     if (!q || disabled) return;
-    if (!s.hasDocument) {
-      toast.message("Lampirin PDF dulu ya, biar ada yang aku bedah.");
-      pickFile();
-      return;
-    }
     setInput("");
     try {
       await run({ mode: "chat", question: q });
@@ -147,9 +142,7 @@ export default function ChatComposer({ variant = "docked", seed }) {
             placeholder={
               s.hasDocument
                 ? "Tanya apa aja soal dokumen ini…"
-                : hero
-                ? "Tanya soal kontrakmu… (lampirin PDF-nya dulu di ikon 📎)"
-                : "Tanya apa aja…"
+                : "Tanya apa aja soal hukum, kontrak, atau hak kamu…"
             }
             className={`max-h-[160px] min-h-[40px] flex-1 resize-none bg-transparent px-1 py-2 text-sm leading-6 outline-none placeholder:text-muted-foreground ${
               hero ? "md:text-base" : ""
@@ -170,7 +163,7 @@ export default function ChatComposer({ variant = "docked", seed }) {
 
       <div className="mt-2 px-1 text-center text-[11px] text-muted-foreground">
         {hero ? (
-          <span>Tarik &amp; lepas PDF ke mana aja · data pribadi dimasking sebelum dianalisis</span>
+          <span>Nggak perlu file buat nanya · lampirin PDF cuma kalau mau bedah dokumen</span>
         ) : (
           <span>Jawaban bisa keliru — tetap cek dokumen aslinya ya.</span>
         )}

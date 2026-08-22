@@ -135,6 +135,22 @@ code {
             radial-gradient(900px circle at 12% 8%, hsl(var(--primary) / 0.14), transparent 55%),
             radial-gradient(700px circle at 88% 0%, hsl(var(--vault) / 0.12), transparent 50%);
     }
+    .marker-underline {
+        position: relative;
+        isolation: isolate;
+    }
+    .marker-underline::after {
+        content: "";
+        position: absolute;
+        left: -0.06em;
+        right: -0.06em;
+        bottom: 0.06em;
+        height: 0.5em;
+        background: hsl(var(--accent));
+        border-radius: 999px;
+        z-index: -1;
+        transform: rotate(-1.4deg);
+    }
 }
 
 /* Slim scrollbars for reading panels */
