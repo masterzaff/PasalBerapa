@@ -75,7 +75,7 @@ export function AnalysisProvider({ children }) {
           snippet: unmaskText(c.snippet || "", mapping),
         }));
 
-        s.addMessage({ role: "assistant", mode, content: reply, citations });
+        s.addMessage({ role: "assistant", mode, content: reply, citations, actions: data.actions || [] });
 
         if (Array.isArray(data.risks)) {
           s.setRisks(

@@ -1,8 +1,23 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Bot, User, BookMarked, Copy, Check, Scale, ShieldAlert } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { Bot, User, BookMarked, Copy, Check, Scale, ShieldAlert, Wrench, ChevronDown } from "lucide-react";
 import { MODE_LABELS } from "@/context/AnalysisContext";
 import { toast } from "sonner";
+
+// Komponen markdown minimal — cukup buat gaya balasan LLM (bold, list, paragraf, link).
+const MARKDOWN_COMPONENTS = {
+  p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+  strong: ({ node, ...props }) => <strong className="font-semibold text-foreground" {...props} />,
+  em: ({ node, ...props }) => <em {...props} />,
+  ul: ({ node, ...props }) => <ul className="mb-2 last:mb-0 list-disc pl-5 space-y-0.5" {...props} />,
+  ol: ({ node, ...props }) => <ol className="mb-2 last:mb-0 list-decimal pl-5 space-y-0.5" {...props} />,
+  li: ({ node, ...props }) => <li {...props} />,
+  a: ({ node, ...props }) => (
+    <a className="text-primary underline underline-offset-2 hover:no-underline" target="_blank" rel="noreferrer" {...props} />
+  ),
+  code: ({ node, ...props }) => <code className="rounded bg-muted px-1 py-0.5 text-[0.85em]" {...props} />,
+};
 
 export function TypingBubble() {
   return (
@@ -22,6 +37,7 @@ export function TypingBubble() {
 export function Message({ m }) {
   const isUser = m.role === "user";
   const [copied, setCopied] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   const handleCopy = async () => {
     if (!m.content) return;
@@ -74,8 +90,8 @@ export function Message({ m }) {
               : "border bg-card/60 backdrop-blur text-foreground shadow-xs"
           }`}
         >
-          <div className="whitespace-pre-wrap select-text text-sm leading-6">
-            {m.content}
+          <div className="select-text text-sm leading-6">
+            <ReactMarkdown components={MARKDOWN_COMPONENTS}>{m.content}</ReactMarkdown>
           </div>
 
           {/* Citations / Legal references */}
@@ -105,6 +121,31 @@ export function Message({ m }) {
                   </a>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Actions breakdown (tools the agent called this request) */}
+          {Array.isArray(m.actions) && m.actions.length > 0 && (
+            <div className="mt-3 pt-3 border-t">
+              <button
+                type="button"
+                onClick={() => setActionsOpen((o) => !o)}
+                className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Wrench className="h-3.5 w-3.5 text-primary" />
+                <span>{m.actions.length} aksi dilakukan</span>
+                <ChevronDown className={`h-3 w-3 transition-transform ${actionsOpen ? "rotate-180" : ""}`} />
+              </button>
+              {actionsOpen && (
+                <ol className="mt-2 space-y-1 pl-0.5">
+                  {m.actions.map((a, i) => (
+                    <li key={i} className="text-[11px] text-muted-foreground flex gap-1.5">
+                      <span className="text-primary font-medium shrink-0">{i + 1}.</span>
+                      <span>{a.label}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
           )}
         </div>

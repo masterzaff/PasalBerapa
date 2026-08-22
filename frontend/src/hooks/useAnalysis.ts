@@ -65,7 +65,7 @@ export function useAnalysis() {
           ...c,
           snippet: unmaskText(c.snippet || "", mapping),
         }));
-        s.addMessage({ role: "assistant", mode, content: reply, citations });
+        s.addMessage({ role: "assistant", mode, content: reply, citations, actions: data.actions || [] });
         if (Array.isArray(data.risks)) {
           s.setRisks(
             data.risks.map((r, i) => ({

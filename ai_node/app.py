@@ -129,7 +129,7 @@ async def analyze(req: AnalyzeReq):
 
     # 2) Jalankan Agentic ReAct Tool Calling loop
     try:
-        parsed, citations = llm.chat_agentic(
+        parsed, citations, actions = llm.chat_agentic(
             messages=messages,
             tools=tools.LEGAL_TOOLS_SCHEMA,
             tool_executor=execute_tool,
@@ -142,10 +142,10 @@ async def analyze(req: AnalyzeReq):
         raise HTTPException(status_code=502, detail=f"Gagal memanggil LLM: {e}")
 
     # 3) Normalisasi output agar selalu sesuai kontrak
-    return _normalize(parsed, req.mode, citations)
+    return _normalize(parsed, req.mode, citations, actions)
 
 
-def _normalize(parsed: Dict[str, Any], mode: str, citations: List[Dict]) -> Dict[str, Any]:
+def _normalize(parsed: Dict[str, Any], mode: str, citations: List[Dict], actions: List[Dict[str, Any]] = None) -> Dict[str, Any]:
     reply = parsed.get("reply") or parsed.get("summary") or ""
     risks = parsed.get("risks") if isinstance(parsed.get("risks"), list) else []
 
@@ -191,5 +191,6 @@ def _normalize(parsed: Dict[str, Any], mode: str, citations: List[Dict]) -> Dict
         "risk_score": score,
         "risks": norm_risks,
         "citations": merged_cites,
+        "actions": actions or [],
         "engine": f"ai-node/{VERSION} ({masker.engine_name()} + RAG + LLM:{llm.LLM_MODEL})",
     }

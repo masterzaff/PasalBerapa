@@ -104,9 +104,14 @@ analysis. The frontend unmasks all text fields before display.
       "snippet": "...",
       "url": "https://peraturan.go.id/..."
     }
+  ],
+  "actions": [
+    { "tool": "search_indonesian_law", "label": "Cari pasal hukum: \"pemutusan sepihak\"" },
+    { "tool": "read_document_lines", "label": "Baca dokumen baris 40-70" }
   ]
 }
 ```
+`actions` is a breakdown of the tool calls the agent made during this request (ReAct loop), in order. Always present, may be `[]`. Meant for an optional "what did the assistant do" expander in the UI — not required for basic rendering.
 
 ### LLM persona / prompt rules (must-follow on the server)
 - Bertindak sebagai **asisten hukum Indonesia yang kasual tapi akurat**.

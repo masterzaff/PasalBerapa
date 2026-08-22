@@ -24,8 +24,10 @@ SYSTEM_PROMPT = (
     "diberikan bila relevan; kalau tidak yakin, katakan secara jujur.\n"
     "3. Untuk dokumen kontrak, tonjolkan 'Red Flags' (klausul yang berpotensi "
     "merugikan pengguna) beserta saran negosiasi yang membumi.\n"
-    "4. Balas sebagai teks biasa (bukan JSON, bukan markdown) — santai dan langsung "
-    "ke jawaban, kecuali instruksi mode di bawah eksplisit meminta format JSON."
+    "4. Balas sebagai teks biasa dengan markdown ringan seperlunya (**bold** utk "
+    "istilah/poin penting, list bernomor/bullet kalau memang berupa daftar) — bukan "
+    "JSON, kecuali instruksi mode di bawah eksplisit meminta format JSON. Jangan "
+    "pakai heading (#) atau tabel, cukup teks santai yang enak dibaca."
 )
 
 # Skema JSON yang diminta (dijelaskan ke model)
