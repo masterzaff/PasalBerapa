@@ -12,7 +12,11 @@ import ChatView from "@/components/app/ChatView";
 import AuthPage from "@/components/app/AuthPage";
 import HistorySheet from "@/components/app/HistorySheet";
 
-export default function AppShell({ sessionId: urlId }) {
+interface AppShellProps {
+  sessionId?: string;
+}
+
+export default function AppShell({ sessionId: urlId }: AppShellProps = {}) {
   const { hasDocument, messages, sessionId, loadConversation } = useSession();
   const { token, loading: authLoading } = useAuth();
   const router = useRouter();
