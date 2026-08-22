@@ -42,10 +42,15 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
   const pathname = usePathname();
   const [input, setInput] = useState("");
   const [focused, setFocused] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const fileRef = useRef(null);
   const taRef = useRef(null);
   const disabled = analyzing || extracting;
   const hero = variant === "hero";
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const isBisnis = mode === "bisnis";
   const activePrompts = isBisnis ? BUSINESS_PROMPTS : PERSONAL_PROMPTS;
@@ -247,9 +252,13 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
           </div>
 
           <Button
-            type="button" data-testid="chat-send-button" onClick={send}
-            disabled={Boolean(disabled || !input.trim())} size="icon"
+            type="button"
+            data-testid="chat-send-button"
+            onClick={send}
+            disabled={!mounted || Boolean(disabled || !input.trim())}
+            size="icon"
             className="h-10 w-10 shrink-0 rounded-full"
+            suppressHydrationWarning
           >
             {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
           </Button>

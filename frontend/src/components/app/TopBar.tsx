@@ -15,7 +15,9 @@ export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome }) {
   const pathname = usePathname();
 
   const isSessionActive = hasDocument || messages.length > 0;
-  const isChatPage = pathname?.startsWith("/chat") || isSessionActive;
+  const isChatPage = pathname?.startsWith("/chat");
+  const isNewChatPage = pathname === "/chat/new";
+  const showNewChatButton = isSessionActive || (isChatPage && !isNewChatPage);
 
   const goHome = () => {
     resetSession();
@@ -47,7 +49,7 @@ export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome }) {
 
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Mode Switch: Bisnis <> Personal (Hanya tampil di Landing page) */}
-          {!isChatPage && (
+          {!isChatPage && !isSessionActive && (
             <div className="flex items-center rounded-full border bg-muted/60 p-0.5 text-xs font-medium" data-testid="mode-toggle-group">
               <button
                 type="button"
@@ -78,7 +80,7 @@ export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome }) {
             </div>
           )}
 
-          {isSessionActive && (
+          {showNewChatButton && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button data-testid="reset-session-button" variant="outline" size="sm" onClick={startNewChat} className="gap-1.5">
