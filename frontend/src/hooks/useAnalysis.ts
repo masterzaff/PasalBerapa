@@ -65,7 +65,14 @@ export function useAnalysis() {
           ...c,
           snippet: unmaskText(c.snippet || "", mapping),
         }));
-        s.addMessage({ role: "assistant", mode, content: reply, citations, actions: data.actions || [] });
+        s.addMessage({
+          role: "assistant",
+          mode,
+          content: reply,
+          citations,
+          actions: data.actions || [],
+          debugMessages: data.debug?.llm_messages || [],
+        });
         if (Array.isArray(data.risks)) {
           s.setRisks(
             data.risks.map((r, i) => ({

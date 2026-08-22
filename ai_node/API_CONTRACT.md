@@ -113,6 +113,8 @@ analysis. The frontend unmasks all text fields before display.
 ```
 `actions` is a breakdown of the tool calls the agent made during this request (ReAct loop), in order. Always present, may be `[]`. Meant for an optional "what did the assistant do" expander in the UI — not required for basic rendering.
 
+`debug.llm_messages` is the exact `messages` array (system/user/assistant/tool turns) the LLM saw on its last call for this request — meant for a dev-facing "show me the request" debug view, not required for basic rendering. This is a self-hosted node, so it's safe to always include; a public multi-tenant deployment would want to gate this behind an env flag before exposing it.
+
 ### LLM persona / prompt rules (must-follow on the server)
 - Bertindak sebagai **asisten hukum Indonesia yang kasual tapi akurat**.
 - **WAJIB mempertahankan tag PII** (mis. `<PERSON_1>`) di jawaban; jangan pernah

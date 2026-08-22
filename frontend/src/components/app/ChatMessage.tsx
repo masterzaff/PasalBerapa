@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
-import { Bot, User, BookMarked, Copy, Check, Scale, ShieldAlert, Wrench, ChevronDown } from "lucide-react";
+import { Bot, User, BookMarked, Copy, Check, Scale, ShieldAlert, Wrench, ChevronDown, Bug } from "lucide-react";
 import { MODE_LABELS } from "@/context/AnalysisContext";
 import { toast } from "sonner";
+import DebugRequestModal from "@/components/app/DebugRequestModal";
 
 // Komponen markdown minimal — cukup buat gaya balasan LLM (bold, list, paragraf, link).
 const MARKDOWN_COMPONENTS = {
@@ -38,6 +39,7 @@ export function Message({ m }) {
   const isUser = m.role === "user";
   const [copied, setCopied] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [debugOpen, setDebugOpen] = useState(false);
 
   const handleCopy = async () => {
     if (!m.content) return;
@@ -150,7 +152,7 @@ export function Message({ m }) {
           )}
         </div>
 
-        {/* Action buttons (Copy) */}
+        {/* Action buttons (Copy, Debug) */}
         {!m.error && (
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
@@ -162,9 +164,20 @@ export function Message({ m }) {
               {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
               <span>{copied ? "Tersalin" : "Salin"}</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setDebugOpen(true)}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors"
+              title="Lihat request ke LLM"
+            >
+              <Bug className="h-3 w-3" />
+              <span>Debug</span>
+            </button>
           </div>
         )}
       </div>
+
+      <DebugRequestModal open={debugOpen} onOpenChange={setDebugOpen} messages={m.debugMessages || []} />
     </motion.div>
   );
 }

@@ -306,7 +306,9 @@ def chat_agentic(
     """Menjalankan loop Agentic Tool Calling (ReAct) hingga LLM menghasilkan jawaban akhir.
     Untuk mode di _JSON_MODES, jawaban akhir di-enforce lewat response_format json_schema
     (strict). Mode lain (chat/summary) tidak diminta JSON sama sekali — teks mentah jadi 'reply'.
-    Mengembalikan: (result_dict, collected_citations_list, actions_list)"""
+    Mengembalikan: (result_dict, collected_citations_list, actions_list, debug_messages)
+    `debug_messages` adalah messages persis yg dilihat LLM di panggilan terakhir — buat
+    keperluan debug di frontend, bukan bagian dari kontrak /analyze utama."""
     if not is_configured():
         raise LLMNotConfigured(
             "LLM belum dikonfigurasi. Set LLM_BASE_URL & LLM_API_KEY di environment."
@@ -315,7 +317,7 @@ def chat_agentic(
     schema = _schema_for_mode(mode)
 
     if not tools or not tool_executor:
-        return chat_json(messages, response_schema=schema), [], []
+        return chat_json(messages, response_schema=schema), [], [], messages
 
     url = f"{LLM_BASE_URL}/chat/completions"
     headers = {
@@ -350,7 +352,7 @@ def chat_agentic(
                 # Jika endpoint model tidak mendukung tools/response_format, fallback ke chat_json standar
                 if "tool" in resp.text.lower() or resp.status_code in (400, 422):
                     logger.warning("[llm] Tool calling ditolak endpoint, fallback ke chat_json standar: %s", resp.text[:200])
-                    return chat_json(messages, response_schema=schema), collected_citations, actions
+                    return chat_json(messages, response_schema=schema), collected_citations, actions, current_messages
                 raise LLMError(f"HTTP {resp.status_code}: {resp.text[:500]}")
 
             data = _parse_chat_response(resp.text)
@@ -392,8 +394,8 @@ def chat_agentic(
             # Jika LLM sudah menghasilkan jawaban akhir (tanpa tool calls)
             content = choice.get("content") or ""
             if schema:
-                return _extract_json(content), collected_citations, actions
-            return {"reply": content}, collected_citations, actions
+                return _extract_json(content), collected_citations, actions, current_messages
+            return {"reply": content}, collected_citations, actions, current_messages
 
         # Jika loop selesai mencapai batas max_steps, minta jawaban final
         # (masih di dalam blok `with` agar `client` belum ditutup)
@@ -417,12 +419,12 @@ def chat_agentic(
                 parsed_final = _parse_chat_response(final_resp.text)
                 raw_content = parsed_final["choices"][0]["message"]["content"]
                 if schema:
-                    return _extract_json(raw_content), collected_citations, actions
-                return {"reply": raw_content}, collected_citations, actions
+                    return _extract_json(raw_content), collected_citations, actions, current_messages
+                return {"reply": raw_content}, collected_citations, actions, current_messages
         except Exception as e:
             logger.warning("[agent] Gagal mengambil final response: %s", e)
 
-    return chat_json(messages, response_schema=schema), collected_citations, actions
+    return chat_json(messages, response_schema=schema), collected_citations, actions, current_messages
 
 
 def status() -> Dict[str, Any]:
