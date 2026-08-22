@@ -1,26 +1,30 @@
 [
   {
-    "content": "Buat masker.py (Presidio + regex Indonesia -> mask_text)",
+    "content": "SessionContext: persist ke sessionStorage + loadConversation + setSessionId (fix refresh)",
     "status": "completed"
   },
   {
-    "content": "Buat retriever.py (ChromaDB + e5 query) & prompts.py (persona + JSON schema)",
+    "content": "App.js: BrowserRouter + routes /chat/:sessionId + Shell URL-sync & restore-from-DB",
     "status": "completed"
   },
   {
-    "content": "Buat llm.py (OpenAI-compatible client via httpx)",
+    "content": "TopBar: logo clickable -> menu utama (sesi baru); navigate saat reset",
     "status": "completed"
   },
   {
-    "content": "Refactor app.py: /health, /mask, /analyze, /search sesuai kontrak",
+    "content": "ChatView: header sticky + composer sticky + navigate saat delete",
     "status": "completed"
   },
   {
-    "content": "Update requirements.txt, Dockerfile (spacy model+embed), ingest.py, .env.example, README",
+    "content": "HistorySheet: navigate ke /chat/:id + pakai loadConversation",
     "status": "completed"
   },
   {
-    "content": "Verifikasi syntax (py_compile) tanpa install deps berat",
+    "content": "Compile (esbuild) + screenshot verifikasi manual (refresh persist OK)",
+    "status": "completed"
+  },
+  {
+    "content": "testing_agent verifikasi bug refresh + routing (WAJIB) - 100% PASS",
     "status": "completed"
   }
 ]

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { FileText, Gauge, Lock, Bot, FileCheck2, Scale, Loader2, MoreVertical, Pencil, Trash2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,11 +38,11 @@ export default function ChatView({ onOpenAuth }) {
   const { busy: analyzing, busyMode } = useAnalysis();
   const ui = useUI();
   const { user, token } = useAuth();
+  const navigate = useNavigate();
   const feedRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [convId, setConvId] = useState(null);
-  const [convTitle, setConvTitle] = useState(null);
+  const { convId, setConvId, convTitle, setConvTitle } = s;
   const savingRef = useRef(false);
 
   useEffect(() => {
@@ -118,12 +119,13 @@ export default function ChatView({ onOpenAuth }) {
       setConvTitle(null);
       setSaved(false);
       s.resetSession();
+      navigate("/");
     }
   };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="border-b bg-background/70 backdrop-blur">
+      <div className="sticky top-0 z-30 border-b bg-background/70 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-2 px-4 py-2">
           <div className="flex min-w-0 items-center gap-2 text-sm">
             {s.hasDocument ? (
@@ -212,7 +214,7 @@ export default function ChatView({ onOpenAuth }) {
         </div>
       </div>
 
-      <div className="border-t bg-background/80 backdrop-blur">
+      <div className="sticky bottom-0 z-30 border-t bg-background/80 backdrop-blur">
         <div className="mx-auto max-w-3xl px-4 py-3">
           <ChatComposer variant="docked" onOpenAuth={onOpenAuth} />
         </div>
