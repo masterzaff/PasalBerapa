@@ -41,22 +41,24 @@ export function AnalysisProvider({ children }) {
   }, [s, conn]);
 
   const executeAnalysis = useCallback(
-    async ({ mode, question, customMaskedText, customMapping }) => {
+    async ({ mode, question, customMaskedText, customMapping, regenerateMessageId }) => {
       if (!conn.analyzeConfigured) {
         toast.error("Endpoint Analisis belum diatur. Buka Settings dulu ya.");
         throw new NotConfiguredError("Analisis");
       }
       setBusy(true);
       setBusyMode(mode);
-      const userContent = question || MODE_LABELS[mode] || "Analisis";
-      s.addMessage({ role: "user", mode, content: userContent });
+      if (!regenerateMessageId) {
+        const userContent = question || MODE_LABELS[mode] || "Analisis";
+        s.addMessage({ role: "user", mode, content: userContent });
+      }
 
       try {
         const mapping = customMapping ?? s.piiMapping ?? {};
         const maskedText = customMaskedText ?? (s.hasDocument ? (s.maskedText || remaskText(s.rawText, mapping)) : "");
 
         const history = s.messages
-          .filter((m) => m.role && !m.error)
+          .filter((m) => m.role && !m.error && m.id !== regenerateMessageId)
           .slice(-8)
           .map((m) => ({ role: m.role, content: remaskText(m.content, mapping) }));
 
@@ -75,14 +77,21 @@ export function AnalysisProvider({ children }) {
           snippet: unmaskText(c.snippet || "", mapping),
         }));
 
-        s.addMessage({
+        const assistantMsg = {
           role: "assistant",
           mode,
           content: reply,
           citations,
           actions: data.actions || [],
           debugMessages: data.debug?.llm_messages || [],
-        });
+        };
+        if (regenerateMessageId) {
+          s.setMessages((prev) =>
+            prev.map((m) => (m.id === regenerateMessageId ? { ...m, ...assistantMsg, ts: Date.now() } : m))
+          );
+        } else {
+          s.addMessage(assistantMsg);
+        }
 
         if (Array.isArray(data.risks)) {
           s.setRisks(
@@ -103,7 +112,9 @@ export function AnalysisProvider({ children }) {
 
         return data;
       } catch (e) {
-        s.addMessage({ role: "assistant", mode, error: true, content: `Waduh, gagal: ${e.message}` });
+        if (!regenerateMessageId) {
+          s.addMessage({ role: "assistant", mode, error: true, content: `Waduh, gagal: ${e.message}` });
+        }
         if (!(e instanceof NotConfiguredError)) toast.error(e.message || "Analisis gagal.");
         throw e;
       } finally {
@@ -115,7 +126,7 @@ export function AnalysisProvider({ children }) {
   );
 
   const run = useCallback(
-    async ({ mode, question }) => {
+    async ({ mode, question, regenerateMessageId }) => {
       // If there is a document and user has not yet reviewed/confirmed the PII redaction
       if (s.hasDocument && !s.piiConfirmed) {
         setBusy(true);
@@ -126,12 +137,12 @@ export function AnalysisProvider({ children }) {
           setBusy(false);
           setBusyMode(null);
         }
-        pendingActionRef.current = { mode, question };
+        pendingActionRef.current = { mode, question, regenerateMessageId };
         s.setShowPiiModal(true);
         return;
       }
 
-      return executeAnalysis({ mode, question });
+      return executeAnalysis({ mode, question, regenerateMessageId });
     },
     [s, ensureMasked, executeAnalysis]
   );

@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
-import { Bot, User, BookMarked, Copy, Check, Scale, ShieldAlert, Wrench, ChevronDown, Bug } from "lucide-react";
-import { MODE_LABELS } from "@/context/AnalysisContext";
+import { Bot, User, BookMarked, Copy, Check, Scale, ShieldAlert, Wrench, ChevronDown, Bug, RotateCw } from "lucide-react";
+import { MODE_LABELS, useAnalysis } from "@/context/AnalysisContext";
+import { useSession } from "@/context/SessionContext";
 import { toast } from "sonner";
 import DebugRequestModal from "@/components/app/DebugRequestModal";
 
@@ -40,6 +41,28 @@ export function Message({ m }) {
   const [copied, setCopied] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const s = useSession();
+  const { run, busy: analyzing } = useAnalysis();
+
+  const msgIndex = s.messages.findIndex((msg) => msg.id === m.id);
+  const prevUserMsg = msgIndex > 0 ? s.messages[msgIndex - 1] : null;
+
+  const handleRegenerate = async () => {
+    if (!prevUserMsg || regenerating || analyzing) return;
+    setRegenerating(true);
+    try {
+      await run({
+        mode: m.mode,
+        question: m.mode === "chat" ? prevUserMsg.content : undefined,
+        regenerateMessageId: m.id,
+      });
+    } catch (e) {
+      // run() sudah menampilkan toast error sendiri
+    } finally {
+      setRegenerating(false);
+    }
+  };
 
   const handleCopy = async () => {
     if (!m.content) return;
@@ -173,6 +196,18 @@ export function Message({ m }) {
               <Bug className="h-3 w-3" />
               <span>Debug</span>
             </button>
+            {prevUserMsg && (
+              <button
+                type="button"
+                onClick={handleRegenerate}
+                disabled={regenerating || analyzing}
+                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Buat ulang jawaban ini"
+              >
+                <RotateCw className={`h-3 w-3 ${regenerating ? "animate-spin" : ""}`} />
+                <span>Regenerate</span>
+              </button>
+            )}
           </div>
         )}
       </div>
