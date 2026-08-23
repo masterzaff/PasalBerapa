@@ -78,7 +78,7 @@ export function AuthProvider({ children }) {
     applyKey(encKeyRaw);
 
     if ((d.kdf_version ?? kdf) < 1) {
-      try { await authApi.upgradeKdf(authSecret, d.token); } catch (_) {}
+      try { await authApi.upgradeKdf(authSecret, password, d.token); } catch (_) {}
     }
     return d.user;
   }, [persist, applyKey]);

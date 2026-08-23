@@ -29,8 +29,8 @@ export const authApi = {
   authParams: (email) => req(`/auth/params?email=${encodeURIComponent(email)}`),
   register: (b) => req("/auth/register", { method: "POST", body: b }),
   login: (b) => req("/auth/login", { method: "POST", body: b }),
-  upgradeKdf: (authSecret, token) =>
-    req("/auth/upgrade-kdf", { method: "POST", body: { auth_secret: authSecret }, token }),
+  upgradeKdf: (authSecret, currentPassword, token) =>
+    req("/auth/upgrade-kdf", { method: "POST", body: { auth_secret: authSecret, current_password: currentPassword }, token }),
   // Encrypted mappings only, for a client-side key rotation.
   conversationSecrets: (token) => req("/conversations/secrets", { token }),
   changePassword: (b, token) => req("/auth/change-password", { method: "POST", body: b, token }),

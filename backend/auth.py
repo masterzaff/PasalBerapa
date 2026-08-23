@@ -14,7 +14,7 @@ from typing import List, Optional, Any, Dict
 from fastapi import APIRouter, Header, HTTPException, Depends
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, false
 
 import ai_client
 from database import get_db, User, Conversation, MessageFeedback
@@ -47,6 +47,7 @@ class LoginReq(BaseModel):
 
 class UpgradeKdfReq(BaseModel):
     auth_secret: str
+    current_password: str
 
 
 class ReencryptedMapping(BaseModel):
@@ -242,6 +243,8 @@ async def upgrade_kdf(
     the derived authSecret."""
     if current.kdf_version >= CURRENT_KDF:
         return {"kdf_version": current.kdf_version}
+    if not _verify_pw(req.current_password, current.password_hash):
+        raise HTTPException(status_code=401, detail="Kata sandi saat ini tidak sesuai.")
     current.password_hash = _hash_pw(req.auth_secret)
     current.kdf_version = CURRENT_KDF
     await db.commit()
@@ -327,6 +330,8 @@ def _conv_access(current: Optional[User], anon_key: Optional[str]):
     conversation's own id is no longer enough on its own to open it."""
     if current:
         return Conversation.user_id == current.id
+    if not anon_key:
+        return false()
     return and_(Conversation.user_id.is_(None), Conversation.anon_key == anon_key)
 
 
@@ -844,6 +849,8 @@ async def set_message_feedback(
 ):
     if body.type not in ("up", "down", "report"):
         raise HTTPException(status_code=400, detail="Jenis masukan tidak valid.")
+    if not current and not x_anon_key:
+        raise HTTPException(status_code=400, detail="Kunci anonim diperlukan.")
 
     conv_id = body.conversation_id
     if conv_id:
@@ -896,6 +903,8 @@ async def clear_message_feedback(
     x_anon_key: Optional[str] = Header(None),
     db: AsyncSession = Depends(get_db)
 ):
+    if not current and not x_anon_key:
+        raise HTTPException(status_code=400, detail="Kunci anonim diperlukan.")
     try:
         stmt = select(MessageFeedback).where(
             MessageFeedback.message_id == message_id,
