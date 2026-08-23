@@ -362,56 +362,66 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
             value="list"
             className="flex-1 min-h-0 data-[state=active]:flex data-[state=inactive]:hidden flex-col p-5 gap-3.5 m-0 overflow-hidden"
           >
-            {/* Form Tambah Manual */}
-            <form onSubmit={handleAddCustom} className="flex items-center gap-2 p-2 rounded-xl border bg-muted/30 shrink-0">
-              <Input
-                placeholder="Tambah kata/nama rahasia lain untuk disamarkan…"
-                value={customText}
-                onChange={(e) => setCustomText(e.target.value)}
-                className="text-xs h-9 bg-background"
-              />
-              <select
-                value={customType}
-                onChange={(e) => setCustomType(e.target.value)}
-                className="h-9 px-2.5 rounded-md border text-xs bg-background text-foreground shrink-0 focus-visible:ring-2"
-              >
-                <option value="PERSON">Nama (PERSON)</option>
-                <option value="ORG">Perusahaan / PT</option>
-                <option value="MONEY">Nominal Uang</option>
-                <option value="ACCOUNT">No. Rekening</option>
-                <option value="CUSTOM">Data Kustom</option>
-              </select>
-              <Button type="submit" size="sm" className="h-9 gap-1 text-xs shrink-0" disabled={!customText.trim()}>
-                <Plus className="h-3.5 w-3.5" />
-                Tambah
-              </Button>
-            </form>
-
-            {/* Bulk action / hint: mark selected entries as the same real-world entity */}
-            {groupSelection.length > 0 && (
-              <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-1.5 shrink-0 animate-in fade-in duration-150">
-                <div className="flex items-center gap-2 text-xs text-foreground">
+            {/* Top Toolbar: Form Tambah Manual by default, replaced by Bulk Merge/Hint bar when 1+ selected */}
+            {groupSelection.length === 0 ? (
+              <form onSubmit={handleAddCustom} className="flex items-center gap-2 p-2 rounded-xl border bg-muted/30 shrink-0 animate-in fade-in duration-150">
+                <Input
+                  placeholder="Tambah kata/nama rahasia lain untuk disamarkan…"
+                  value={customText}
+                  onChange={(e) => setCustomText(e.target.value)}
+                  className="text-xs h-9 bg-background"
+                />
+                <select
+                  value={customType}
+                  onChange={(e) => setCustomType(e.target.value)}
+                  className="h-9 px-2.5 rounded-md border text-xs bg-background text-foreground shrink-0 focus-visible:ring-2"
+                >
+                  <option value="PERSON">Nama (PERSON)</option>
+                  <option value="ORG">Perusahaan / PT</option>
+                  <option value="MONEY">Nominal Uang</option>
+                  <option value="ACCOUNT">No. Rekening</option>
+                  <option value="CUSTOM">Data Kustom</option>
+                </select>
+                <Button type="submit" size="sm" className="h-9 gap-1 text-xs shrink-0" disabled={!customText.trim()}>
+                  <Plus className="h-3.5 w-3.5" />
+                  Tambah
+                </Button>
+              </form>
+            ) : (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-primary/30 bg-primary/5 p-2 shrink-0 animate-in fade-in duration-150 min-h-[46px]">
+                <div className="flex items-center gap-2 text-xs text-foreground min-w-0 pl-1">
                   <Merge className="h-3.5 w-3.5 text-primary shrink-0" />
                   {groupSelection.length === 1 ? (
-                    <span>
+                    <span className="truncate">
                       <strong>1 tag dipilih</strong> — pilih 2 atau lebih item untuk menggabungkan.
                     </span>
                   ) : (
-                    <span>
+                    <span className="truncate">
                       <strong>{groupSelection.length} tag dipilih</strong> — anggap sebagai satu entitas yang sama?
                     </span>
                   )}
                 </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="h-7 gap-1.5 text-xs shrink-0"
-                  onClick={handleGroupVariants}
-                  disabled={groupSelection.length < 2}
-                >
-                  <Merge className="h-3.5 w-3.5" />
-                  Gabungkan
-                </Button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setGroupSelection([])}
+                  >
+                    Batal
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs bg-primary text-primary-foreground font-medium"
+                    onClick={handleGroupVariants}
+                    disabled={groupSelection.length < 2}
+                  >
+                    <Merge className="h-3.5 w-3.5" />
+                    Gabungkan
+                  </Button>
+                </div>
               </div>
             )}
 
