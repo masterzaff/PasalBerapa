@@ -387,13 +387,28 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
               </Button>
             </form>
 
-            {/* Bulk action: mark selected entries as the same real-world entity */}
-            {groupSelection.length >= 2 && (
-              <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-1.5 shrink-0">
-                <span className="text-xs text-foreground">
-                  {groupSelection.length} tag dipilih — anggap sebagai satu entitas yang sama?
-                </span>
-                <Button type="button" size="sm" className="h-7 gap-1.5 text-xs shrink-0" onClick={handleGroupVariants}>
+            {/* Bulk action / hint: mark selected entries as the same real-world entity */}
+            {groupSelection.length > 0 && (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-1.5 shrink-0 animate-in fade-in duration-150">
+                <div className="flex items-center gap-2 text-xs text-foreground">
+                  <Merge className="h-3.5 w-3.5 text-primary shrink-0" />
+                  {groupSelection.length === 1 ? (
+                    <span>
+                      <strong>1 tag dipilih</strong> — pilih 2 atau lebih item untuk menggabungkan.
+                    </span>
+                  ) : (
+                    <span>
+                      <strong>{groupSelection.length} tag dipilih</strong> — anggap sebagai satu entitas yang sama?
+                    </span>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs shrink-0"
+                  onClick={handleGroupVariants}
+                  disabled={groupSelection.length < 2}
+                >
                   <Merge className="h-3.5 w-3.5" />
                   Gabungkan
                 </Button>
