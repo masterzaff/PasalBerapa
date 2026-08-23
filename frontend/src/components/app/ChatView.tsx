@@ -179,15 +179,24 @@ export default function ChatView({ onOpenAuth }) {
      encKey, convId, convTitle, convVersion, token, firstUserMsg, setConvId, setConvTitle, setConvVersion]
   );
 
+  // persist() itself calls setConvVersion() on every successful save, which
+  // changes persist's own identity (convVersion is one of its deps). Listing
+  // `persist` directly in the autosave effect's deps therefore re-triggered
+  // the effect after every save it just did — re-saving the same unchanged
+  // messages, bumping the version again, forever. A ref decouples "call the
+  // latest persist" from "persist changed identity, so re-run me".
+  const persistRef = useRef(persist);
+  useEffect(() => { persistRef.current = persist; }, [persist]);
+
   // Autosave: simpan otomatis tiap ada pesan baru (kalau sudah login).
   // New messages invalidate "Tersimpan" immediately, otherwise the indicator
   // keeps claiming saved state for content that hasn't been written yet.
   useEffect(() => {
     if (!user || analyzing || s.messages.length === 0 || conflict) return;
     setSaved(false);
-    const t = setTimeout(() => { persist(); }, 1000);
+    const t = setTimeout(() => { persistRef.current(); }, 1000);
     return () => clearTimeout(t);
-  }, [s.messages, analyzing, user, persist, conflict]);
+  }, [s.messages, analyzing, user, conflict]);
 
   const openRename = () => {
     if (!user) { onOpenAuth(); return; }
