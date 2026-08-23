@@ -207,16 +207,24 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
                 </span>
               )}
             </div>
-            <button
-              type="button"
-              onClick={removeFile}
-              data-testid="remove-document-button"
-              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive focus-visible:outline-none"
-              title="Batal lampiran dokumen"
-              aria-label="Batal lampiran dokumen"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
+            {/* Once a message has already gone out with this document, its
+                masked text + PII mapping are what follow-up questions rely on
+                for context (see maskQuestion/executeAnalysis) — removing it
+                here would silently blank that context. Only offer removal
+                before the document has actually been used, when it's a true
+                "cancel this attachment", not a destructive edit. */}
+            {s.messages.length === 0 && (
+              <button
+                type="button"
+                onClick={removeFile}
+                data-testid="remove-document-button"
+                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive focus-visible:outline-none"
+                title="Batal lampiran dokumen"
+                aria-label="Batal lampiran dokumen"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         )}
         <div className="flex items-end gap-1.5">
