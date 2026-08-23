@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Shield, Lock, Trash2, Plus, Check, Eye, EyeOff, AlertTriangle, Sparkles, FileText, ArrowRight } from "lucide-react";
+import { Shield, Lock, Trash2, Plus, Check, Eye, EyeOff, AlertTriangle, Sparkles, FileText, ArrowRight, Merge } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -13,11 +13,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useSession } from "@/context/SessionContext";
 import { useAnalysis } from "@/context/AnalysisContext";
-import { tagTypeFromTag, tagTypeLabel, remaskText } from "@/lib/pii";
+import { tagTypeFromTag, tagTypeLabel, parseTag, remaskText } from "@/lib/pii";
 
 interface PiiReviewModalProps {
   open: boolean;
@@ -41,16 +42,71 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
   const [customText, setCustomText] = useState("");
   const [customType, setCustomType] = useState("CUSTOM");
   const [activeTab, setActiveTab] = useState("list");
+  // Tags picked to be merged as "same entity, different spelling" —
+  // e.g. "Budi Santoso" and "Pak Budi" get retagged <PERSON_1a>/<PERSON_1b>
+  // so the LLM (and the human reading the vault) treats them as one person.
+  const [groupSelection, setGroupSelection] = useState<string[]>([]);
 
   // Synchronize with session state when modal opens
   useEffect(() => {
     if (open) {
       setMapping(s.piiMapping && Object.keys(s.piiMapping).length > 0 ? { ...s.piiMapping } : {});
       setCustomText("");
+      setGroupSelection([]);
     }
   }, [open, s.piiMapping]);
 
   const entries = Object.entries(mapping);
+
+  const toggleGroupSelect = (tag: string) => {
+    setGroupSelection((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+  };
+
+  // Re-tag the selected entries to share one base number with distinct letter
+  // suffixes (<PERSON_1a>, <PERSON_1b>, …) — same convention parseTag() and
+  // the LLM system prompt already understand. Values stay as-is: each variant
+  // is still its own literal string in the document that needs its own
+  // redaction, they just now read as one entity instead of unrelated ones.
+  const handleGroupVariants = () => {
+    if (groupSelection.length < 2) return;
+    const types = new Set(groupSelection.map((t) => tagTypeFromTag(t)));
+    if (types.size > 1) {
+      toast.error("Cuma bisa gabungin tag dengan jenis yang sama (mis. semua Nama).");
+      return;
+    }
+    const type = [...types][0];
+    const parsed = groupSelection.map((t) => parseTag(t)).filter(Boolean);
+    const baseNum = Math.min(...parsed.map((p) => p.num));
+    const untouched = new Set(Object.keys(mapping).filter((t) => !groupSelection.includes(t)));
+
+    const letters = "abcdefghijklmnopqrstuvwxyz".split("");
+    let li = 0;
+    const nextFreeTag = () => {
+      while (li < letters.length) {
+        const candidate = `<${type}_${baseNum}${letters[li]}>`;
+        li += 1;
+        if (!untouched.has(candidate)) return candidate;
+      }
+      return `<${type}_${baseNum}${Date.now().toString(36)}>`; // pathological fallback
+    };
+
+    setMapping((prev) => {
+      const next = { ...prev };
+      // Sort so the lowest/oldest tag keeps letter "a" — stable, predictable.
+      const ordered = [...groupSelection].sort((a, b) => {
+        const pa = parseTag(a), pb = parseTag(b);
+        return pa.num - pb.num || pa.letter.localeCompare(pb.letter);
+      });
+      for (const oldTag of ordered) {
+        const value = next[oldTag];
+        delete next[oldTag];
+        next[nextFreeTag()] = value;
+      }
+      return next;
+    });
+    setGroupSelection([]);
+    toast.success(`${groupSelection.length} tag digabung sebagai satu entitas.`);
+  };
 
   // Remove a specific mapping entry
   const handleRemove = (tag: string) => {
@@ -59,6 +115,7 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
       delete next[tag];
       return next;
     });
+    setGroupSelection((prev) => prev.filter((t) => t !== tag));
     toast.info(`Sensor tag ${tag} dihapus.`);
   };
 
@@ -176,6 +233,20 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
               </Button>
             </form>
 
+            {/* Bulk action: mark selected entries as the same real-world
+                entity ("Budi Santoso" / "Pak Budi" -> <PERSON_1a>/<PERSON_1b>) */}
+            {groupSelection.length >= 2 && (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 shrink-0">
+                <span className="text-xs text-foreground">
+                  {groupSelection.length} tag dipilih — anggap sebagai satu entitas yang sama?
+                </span>
+                <Button type="button" size="sm" className="h-7 gap-1.5 text-xs shrink-0" onClick={handleGroupVariants}>
+                  <Merge className="h-3.5 w-3.5" />
+                  Gabungkan
+                </Button>
+              </div>
+            )}
+
             {/* List of Detected Entities */}
             <div className="flex-1 min-h-[220px] rounded-xl border bg-card overflow-hidden flex flex-col">
               {entries.length === 0 ? (
@@ -191,15 +262,33 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
                   {entries.map(([tag, value]) => {
                     const type = tagTypeFromTag(tag);
                     const label = tagTypeLabel(type);
+                    const parsed = parseTag(tag);
+                    const isGrouped = Boolean(
+                      parsed && entries.some(([t]) => t !== tag && parseTag(t)?.type === parsed.type && parseTag(t)?.num === parsed.num)
+                    );
                     return (
                       <div key={tag} className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-muted/40 transition-colors">
                         <div className="flex items-center gap-2.5 min-w-0">
+                          <Checkbox
+                            checked={groupSelection.includes(tag)}
+                            onCheckedChange={() => toggleGroupSelect(tag)}
+                            className="shrink-0"
+                            aria-label={`Pilih ${tag} untuk digabung`}
+                          />
                           <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary shrink-0 border border-primary/20">
                             {tag}
                           </span>
                           <span className="text-[11px] font-medium text-muted-foreground shrink-0">
                             ({label})
                           </span>
+                          {isGrouped && (
+                            <span
+                              className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground shrink-0"
+                              title="Ditandai sebagai entitas yang sama dengan tag lain bernomor sama"
+                            >
+                              varian
+                            </span>
+                          )}
                           <span className="text-xs font-medium text-foreground truncate">
                             {value}
                           </span>

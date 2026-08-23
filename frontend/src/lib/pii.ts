@@ -4,7 +4,10 @@
 // and UNMASKING (replacing tags with real values) before showing text on screen.
 
 // Matches tags like <PERSON_1>, <EMAIL_2>, <NIK_1>, <PHONE_3>, <ADDRESS_1>, etc.
-export const TAG_REGEX = /<([A-Z_]+)_(\d+)>/g;
+// The trailing lowercase letter is optional: <PERSON_1a> / <PERSON_1b> is how
+// the HITL review UI marks two differently-spelled mentions ("Budi Santoso",
+// "Pak Budi") as the same underlying entity — same base number, own letter.
+export const TAG_REGEX = /<([A-Z_]+)_(\d+)([a-z]?)>/g;
 
 export function extractTags(text) {
   if (!text) return [];
@@ -114,6 +117,14 @@ export function tagTypeLabel(type) {
 }
 
 export function tagTypeFromTag(tag) {
-  const m = /^<([A-Z_]+)_\d+>$/.exec(tag);
+  const m = /^<([A-Z_]+)_\d+[a-z]?>$/.exec(tag);
   return m ? m[1] : "UNKNOWN";
+}
+
+// "<PERSON_1a>" -> {type:"PERSON", num:1, letter:"a"}. Two tags sharing type+num
+// (regardless of letter) are the same underlying entity per the HITL grouping.
+export function parseTag(tag) {
+  const m = /^<([A-Z_]+)_(\d+)([a-z]?)>$/.exec(tag);
+  if (!m) return null;
+  return { type: m[1], num: parseInt(m[2], 10), letter: m[3] || "" };
 }

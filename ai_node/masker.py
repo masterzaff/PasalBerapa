@@ -289,7 +289,10 @@ def mask_text(
 
     # Seed dari mapping yang sudah ada supaya tag konsisten & nomor menyambung.
     for tag, value in mapping.items():
-        m = re.match(r"^<([A-Z_]+)_(\d+)>$", tag)
+        # Optional trailing letter (<PERSON_1a>) is how the frontend HITL
+        # review marks two differently-spelled mentions as one entity — still
+        # a distinct literal value with its own tag, just sharing the number.
+        m = re.match(r"^<([A-Z_]+)_(\d+)[a-z]?>$", tag)
         if not m:
             continue
         kind, idx = m.group(1), int(m.group(2))
