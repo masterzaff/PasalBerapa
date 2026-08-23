@@ -3,11 +3,21 @@
 PasalBerapa? Backend API Test Suite
 Tests the reference contract stub endpoints: /api/health, /api/mask, /api/analyze
 """
+import os
 import requests
 import sys
 import json
 
-BASE_URL = "https://pii-legal-hub.preview.emergentagent.com/api"
+# Override with BASE_URL=... for a deployed node. Default targets the local
+# gateway from docker-compose; the previous default pointed at a preview host
+# that no longer exists.
+BASE_URL = os.environ.get("BASE_URL", "http://localhost:8000/api").rstrip("/")
+
+# /analyze runs an agentic ReAct loop that makes live pasal.id tool calls, so it
+# routinely takes ~10-15s — the old blanket 10s timeout failed risk mode on
+# timing alone, not on the contract. Masking is local and stays quick.
+FAST_TIMEOUT = 30
+ANALYZE_TIMEOUT = 120
 
 class BackendTester:
     def __init__(self):
@@ -60,7 +70,7 @@ def test_health():
     url = f"{BASE_URL}/health"
     print(f"GET {url}")
     
-    resp = requests.get(url, timeout=10)
+    resp = requests.get(url, timeout=FAST_TIMEOUT)
     print(f"Status: {resp.status_code}")
     print(f"Response: {resp.text}")
     
@@ -83,7 +93,7 @@ def test_mask_basic():
     print(f"POST {url}")
     print(f"Payload: {json.dumps(payload, indent=2)}")
     
-    resp = requests.post(url, json=payload, timeout=10)
+    resp = requests.post(url, json=payload, timeout=FAST_TIMEOUT)
     print(f"Status: {resp.status_code}")
     print(f"Response: {resp.text[:500]}")
     
@@ -129,7 +139,7 @@ def test_mask_pii_types():
     print(f"POST {url}")
     print(f"Testing PII types: name, email, NIK, phone")
     
-    resp = requests.post(url, json=payload, timeout=10)
+    resp = requests.post(url, json=payload, timeout=FAST_TIMEOUT)
     print(f"Status: {resp.status_code}")
     
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
@@ -160,7 +170,7 @@ def test_analyze_risk_mode():
     print(f"POST {url}")
     print(f"Mode: risk")
     
-    resp = requests.post(url, json=payload, timeout=10)
+    resp = requests.post(url, json=payload, timeout=ANALYZE_TIMEOUT)
     print(f"Status: {resp.status_code}")
     print(f"Response: {resp.text[:500]}")
     
@@ -204,7 +214,7 @@ def test_analyze_summary_mode():
     print(f"POST {url}")
     print(f"Mode: summary")
     
-    resp = requests.post(url, json=payload, timeout=10)
+    resp = requests.post(url, json=payload, timeout=ANALYZE_TIMEOUT)
     print(f"Status: {resp.status_code}")
     
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
@@ -231,7 +241,7 @@ def test_analyze_key_articles_mode():
     print(f"POST {url}")
     print(f"Mode: key_articles")
     
-    resp = requests.post(url, json=payload, timeout=10)
+    resp = requests.post(url, json=payload, timeout=ANALYZE_TIMEOUT)
     print(f"Status: {resp.status_code}")
     
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
@@ -260,7 +270,7 @@ def test_analyze_chat_mode():
     print(f"Mode: chat")
     print(f"Question: {payload['question']}")
     
-    resp = requests.post(url, json=payload, timeout=10)
+    resp = requests.post(url, json=payload, timeout=ANALYZE_TIMEOUT)
     print(f"Status: {resp.status_code}")
     
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"

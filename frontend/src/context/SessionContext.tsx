@@ -41,7 +41,6 @@ export function SessionProvider({ children }) {
   // PII masking (from user endpoint)
   const [maskedText, setMaskedText] = useState("");
   const [piiMapping, setPiiMapping] = useState({}); // {"<PERSON_1>":"Andi"}
-  const [piiEntities, setPiiEntities] = useState([]);
   const [piiConfirmed, setPiiConfirmed] = useState(false);
   const [showPiiModal, setShowPiiModal] = useState(false);
 
@@ -55,6 +54,8 @@ export function SessionProvider({ children }) {
   // duplikat setelah refresh). null = sesi baru yang belum pernah disimpan.
   const [convId, setConvId] = useState(null);
   const [convTitle, setConvTitle] = useState(null);
+  // Server version last seen, for optimistic concurrency on autosave.
+  const [convVersion, setConvVersion] = useState(0);
 
   // UI (not persisted)
   const [highlightExcerpt, setHighlightExcerpt] = useState(null);
@@ -70,7 +71,6 @@ export function SessionProvider({ children }) {
       if (snap.extractInfo) setExtractInfo(snap.extractInfo);
       if (snap.maskedText) setMaskedText(snap.maskedText);
       if (snap.piiMapping) setPiiMapping(snap.piiMapping);
-      if (snap.piiEntities) setPiiEntities(snap.piiEntities);
       if (snap.piiConfirmed) setPiiConfirmed(true);
       if (snap.messages) setMessages(snap.messages);
       if (snap.risks) setRisks(snap.risks);
@@ -78,6 +78,7 @@ export function SessionProvider({ children }) {
       if (snap.citations) setCitations(snap.citations);
       if (snap.convId) setConvId(snap.convId);
       if (snap.convTitle) setConvTitle(snap.convTitle);
+      if (typeof snap.convVersion === "number") setConvVersion(snap.convVersion);
     } else {
       setSessionId(newSessionId());
     }
@@ -98,7 +99,6 @@ export function SessionProvider({ children }) {
           extractInfo,
           maskedText,
           piiMapping,
-          piiEntities,
           piiConfirmed,
           messages,
           risks,
@@ -106,6 +106,7 @@ export function SessionProvider({ children }) {
           citations,
           convId,
           convTitle,
+          convVersion,
         };
         sessionStorage.setItem(SS_KEY, JSON.stringify(payload));
         persistRef.current = true;
@@ -116,8 +117,8 @@ export function SessionProvider({ children }) {
       }
     } catch (_) {}
   }, [
-    sessionId, file, rawText, extractInfo, maskedText, piiMapping, piiEntities,
-    piiConfirmed, messages, risks, riskScore, citations, convId, convTitle,
+    sessionId, file, rawText, extractInfo, maskedText, piiMapping,
+    piiConfirmed, messages, risks, riskScore, citations, convId, convTitle, convVersion,
   ]);
 
   // Everything derived from the currently attached document. Swapping or
@@ -130,7 +131,6 @@ export function SessionProvider({ children }) {
     setExtractInfo(null);
     setMaskedText("");
     setPiiMapping({});
-    setPiiEntities([]);
     setPiiConfirmed(false);
     setShowPiiModal(false);
     setRisks([]);
@@ -147,11 +147,12 @@ export function SessionProvider({ children }) {
     setMessages([]);
     setConvId(null);
     setConvTitle(null);
+    setConvVersion(0);
   }, [resetDocument]);
 
   // Load a saved conversation (from history/DB) into the active session.
   // Keeps the given id so the URL /chat/:id stays stable across refresh.
-  const loadConversation = useCallback(({ id, messages: msgs, docName, title, piiMapping, maskedText } = {}) => {
+  const loadConversation = useCallback(({ id, messages: msgs, docName, title, piiMapping, maskedText, version } = {}) => {
     setSessionId(id || newSessionId());
     resetDocument();
     // The RAW document is never persisted (it is the unmasked original), but the
@@ -166,6 +167,7 @@ export function SessionProvider({ children }) {
     setMessages(Array.isArray(msgs) ? msgs : []);
     setConvId(id || null);
     setConvTitle(title || null);
+    setConvVersion(typeof version === "number" ? version : 0);
   }, [resetDocument]);
 
   const addMessage = useCallback((msg) => {
@@ -185,7 +187,6 @@ export function SessionProvider({ children }) {
       extractInfo, setExtractInfo,
       maskedText, setMaskedText,
       piiMapping, setPiiMapping,
-      piiEntities, setPiiEntities,
       piiConfirmed, setPiiConfirmed,
       showPiiModal, setShowPiiModal,
       messages, setMessages, addMessage,
@@ -194,6 +195,7 @@ export function SessionProvider({ children }) {
       citations, setCitations,
       convId, setConvId,
       convTitle, setConvTitle,
+      convVersion, setConvVersion,
       highlightExcerpt, setHighlightExcerpt,
       resetSession,
       resetDocument,
@@ -201,9 +203,9 @@ export function SessionProvider({ children }) {
       hasDocument,
     }),
     [
-      sessionId, file, rawText, extractInfo, maskedText, piiMapping, piiEntities,
+      sessionId, file, rawText, extractInfo, maskedText, piiMapping,
       piiConfirmed, showPiiModal,
-      messages, risks, riskScore, citations, convId, convTitle, highlightExcerpt, addMessage,
+      messages, risks, riskScore, citations, convId, convTitle, convVersion, highlightExcerpt, addMessage,
       resetSession, resetDocument, loadConversation, hasDocument,
     ]
   );

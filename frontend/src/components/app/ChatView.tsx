@@ -53,8 +53,11 @@ export default function ChatView({ onOpenAuth }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
-  const { convId, setConvId, convTitle, setConvTitle } = s;
+  const { convId, setConvId, convTitle, setConvTitle, convVersion, setConvVersion } = s;
   const savingRef = useRef(false);
+  // Set when the server reports someone else wrote this conversation. Autosave
+  // stops rather than overwriting their turns with ours.
+  const [conflict, setConflict] = useState(false);
 
   // Stick to the bottom only when the user is already there. Scrolling back up
   // to re-read an earlier answer used to get yanked to the bottom by the next
@@ -101,14 +104,21 @@ export default function ChatView({ onOpenAuth }) {
           ? await encryptMapping(encKey, s.piiMapping || {})
           : undefined;
 
+        let res;
         if (convId) {
-          await authApi.updateConversation(
+          res = await authApi.updateConversation(
             convId,
-            { title, messages: persistMessages, masked_text: maskedText, pii_mapping_enc: mappingEnc },
+            {
+              expected_version: convVersion,
+              title,
+              messages: persistMessages,
+              masked_text: maskedText,
+              pii_mapping_enc: mappingEnc,
+            },
             token
           );
         } else {
-          const res = await authApi.saveConversation(
+          res = await authApi.saveConversation(
             {
               id: s.sessionId,
               title,
@@ -121,10 +131,18 @@ export default function ChatView({ onOpenAuth }) {
           );
           setConvId(res.id);
         }
+        if (typeof res?.version === "number") setConvVersion(res.version);
         if (titleOverride) setConvTitle(titleOverride);
         setSaved(true);
         return true;
       } catch (e) {
+        // 409: another tab (or device) wrote this conversation since we loaded
+        // it. Autosave overwrites wholesale, so continuing would delete their
+        // turns — stop and tell the user instead of silently winning the race.
+        if (/sudah diubah di tempat lain/i.test(e?.message || "")) {
+          setConflict(true);
+          toast.error("Percakapan ini diubah di tab/perangkat lain. Muat ulang untuk melanjutkan.");
+        }
         return false;
       } finally {
         savingRef.current = false;
@@ -132,18 +150,18 @@ export default function ChatView({ onOpenAuth }) {
       }
     },
     [user, s.messages, s.file, s.piiMapping, s.maskedText, s.rawText, s.sessionId,
-     encKey, convId, convTitle, token, firstUserMsg, setConvId, setConvTitle]
+     encKey, convId, convTitle, convVersion, token, firstUserMsg, setConvId, setConvTitle, setConvVersion]
   );
 
   // Autosave: simpan otomatis tiap ada pesan baru (kalau sudah login).
   // New messages invalidate "Tersimpan" immediately, otherwise the indicator
   // keeps claiming saved state for content that hasn't been written yet.
   useEffect(() => {
-    if (!user || analyzing || s.messages.length === 0) return;
+    if (!user || analyzing || s.messages.length === 0 || conflict) return;
     setSaved(false);
     const t = setTimeout(() => { persist(); }, 1000);
     return () => clearTimeout(t);
-  }, [s.messages, analyzing, user, persist]);
+  }, [s.messages, analyzing, user, persist, conflict]);
 
   const openRename = () => {
     if (!user) { onOpenAuth(); return; }

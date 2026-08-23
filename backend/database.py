@@ -66,6 +66,10 @@ class Conversation(Base):
     messages: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     # base64(iv ‖ AES-GCM ciphertext), encrypted client-side. Opaque here.
     pii_mapping_enc: Mapped[str] = mapped_column(Text, nullable=True)
+    # Optimistic concurrency. Autosave writes the WHOLE conversation, so two
+    # tabs open on the same one used to overwrite each other silently, newest
+    # write winning and the other tab's turns vanishing on next reload.
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
@@ -144,6 +148,7 @@ async def init_db():
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS kdf_version INTEGER NOT NULL DEFAULT 0",
                 "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS masked_text TEXT",
                 "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pii_mapping_enc TEXT",
+                "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 0",
             ):
                 await conn.execute(text(ddl))
             await _drop_plaintext_pii(conn)

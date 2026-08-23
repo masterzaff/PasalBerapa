@@ -83,6 +83,12 @@ android-sdk/frontend/node_modules/.cache/default-development/0.pack
 .env
 .env.*
 *.env
+# Templates are documentation, not secrets — and since endpoints are now
+# build-time env only, a fresh clone has no other record of what to set.
+# Keep them PLACEHOLDERS: this negation means a real value pasted into one
+# would be committed.
+!.env.example
+!**/.env.example
 credentials.json
 *.key
 .credentials

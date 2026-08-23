@@ -24,6 +24,7 @@ export async function hydrateConversation(d, encKey) {
     messages: unmaskMessages(d.messages || [], mapping || {}),
     maskedText: d.masked_text || "",
     piiMapping: mapping || {},
+    version: typeof d.version === "number" ? d.version : 0,
     locked: hasSecrets && !mapping,
   };
 }

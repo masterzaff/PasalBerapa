@@ -64,6 +64,9 @@ class ChangePasswordReq(BaseModel):
 
 class ConversationIn(BaseModel):
     id: Optional[str] = None
+    # Optimistic concurrency: the version this client last read. Omit on a brand
+    # new conversation. A mismatch means someone else wrote in between.
+    expected_version: Optional[int] = None
     title: Optional[str] = None
     messages: List[Dict[str, Any]] = []
     doc_name: Optional[str] = None
@@ -73,6 +76,7 @@ class ConversationIn(BaseModel):
 
 
 class ConversationUpdate(BaseModel):
+    expected_version: Optional[int] = None
     title: Optional[str] = None
     messages: Optional[List[Dict[str, Any]]] = None
     masked_text: Optional[str] = None
@@ -334,6 +338,11 @@ async def save_or_upsert_conversation(
             res = await db.execute(stmt)
             existing = res.scalar_one_or_none()
             if existing:
+                if body.expected_version is not None and existing.version != body.expected_version:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Percakapan ini sudah diubah di tempat lain. Muat ulang dulu ya.",
+                    )
                 existing.title = clean_title
                 existing.messages = body.messages
                 if body.masked_text is not None:
@@ -343,10 +352,12 @@ async def save_or_upsert_conversation(
                 if body.doc_name:
                     existing.doc_name = body.doc_name
                 existing.updated_at = now
+                existing.version = (existing.version or 0) + 1
                 await db.commit()
                 return {
                     "id": existing.id,
                     "title": existing.title,
+                    "version": existing.version,
                     "updated_at": existing.updated_at.isoformat()
                 }
 
@@ -368,6 +379,7 @@ async def save_or_upsert_conversation(
         return {
             "id": conv.id,
             "title": conv.title,
+            "version": conv.version,
             "updated_at": conv.updated_at.isoformat()
         }
     except Exception as e:
@@ -396,6 +408,7 @@ async def get_conversation(
         "messages": c.messages or [],
         "masked_text": c.masked_text or "",
         "pii_mapping_enc": c.pii_mapping_enc or None,
+        "version": c.version or 0,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
     }
 
@@ -417,6 +430,12 @@ async def update_conversation(
     if not c:
         raise HTTPException(status_code=404, detail="Percakapan tidak ditemukan.")
     
+    if body.expected_version is not None and (c.version or 0) != body.expected_version:
+        raise HTTPException(
+            status_code=409,
+            detail="Percakapan ini sudah diubah di tempat lain. Muat ulang dulu ya.",
+        )
+
     try:
         if body.title is not None:
             c.title = body.title.strip()[:140]
@@ -427,9 +446,12 @@ async def update_conversation(
         if body.pii_mapping_enc is not None:
             c.pii_mapping_enc = body.pii_mapping_enc
         c.updated_at = datetime.now(timezone.utc)
-        
+        c.version = (c.version or 0) + 1
+
         await db.commit()
-        return {"ok": True, "id": c.id, "title": c.title}
+        # `version` is required, not decorative: the client must track it or its
+        # NEXT autosave sends a stale expected_version and 409s against itself.
+        return {"ok": True, "id": c.id, "title": c.title, "version": c.version}
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Gagal memperbarui percakapan: {str(e)}")

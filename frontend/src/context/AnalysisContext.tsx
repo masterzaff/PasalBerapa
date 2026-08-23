@@ -52,10 +52,7 @@ export function AnalysisProvider({ children }) {
           knownMapping: mapping,
         });
         const merged = r.mapping || mapping;
-        if (r.entities?.length) {
-          s.setPiiMapping(merged);
-          s.setPiiEntities((prev) => [...(prev || []), ...r.entities]);
-        }
+        if (r.entities?.length) s.setPiiMapping(merged);
         return { masked: r.maskedText || remasked, mapping: merged };
       } catch (_) {
         // Never block the question on the masker being down — pass 1 already
@@ -76,7 +73,6 @@ export function AnalysisProvider({ children }) {
         const r = await maskPII({ text: s.rawText, sessionId: s.sessionId, knownMapping: null });
         s.setMaskedText(r.maskedText);
         s.setPiiMapping(r.mapping || {});
-        s.setPiiEntities(r.entities || []);
         return { text: r.maskedText, mapping: r.mapping || {} };
       } catch (err) {
         toast.warning("Gagal scan PII otomatis, menggunakan teks dokumen.");
