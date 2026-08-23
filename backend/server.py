@@ -11,6 +11,7 @@ from starlette.middleware.cors import CORSMiddleware
 import ai_client
 from database import init_db, close_db
 from auth import auth_router
+from ratelimit import rate_limit_middleware
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -48,6 +49,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.middleware("http")(rate_limit_middleware)
 
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
@@ -116,8 +119,12 @@ async def proxy_analyze(request: Request):
         raise HTTPException(status_code=503, detail="AI Service client belum diinisialisasi")
     try:
         body = await request.json()
-        res = await ai_client.client.post("/analyze", json=body, timeout=90.0)
-        return Response(content=res.content, status_code=res.status_code, media_type="application/json")
+        data = await ai_client.analyze(body)
+        return data
+    except ai_client.AiNodeBusyError:
+        raise HTTPException(status_code=503, detail="Server sedang sibuk, coba lagi sebentar.")
+    except httpx.HTTPStatusError as e:
+        return Response(content=e.response.content, status_code=e.response.status_code, media_type="application/json")
     except (httpx.ConnectError, httpx.ConnectTimeout):
         raise HTTPException(status_code=503, detail="AI Node sedang offline atau belum siap")
     except httpx.TimeoutException:

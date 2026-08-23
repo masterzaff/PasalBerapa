@@ -382,6 +382,8 @@ async def _call_analyze(masked_text, mode, question, history):
             "history": history,
         })
         return data, None
+    except ai_client.AiNodeBusyError:
+        return {}, "Server sedang sibuk, coba lagi sebentar"
     except httpx.HTTPStatusError as e:
         return {}, f"AI Node error {e.response.status_code}"
     except (httpx.ConnectError, httpx.ConnectTimeout):
