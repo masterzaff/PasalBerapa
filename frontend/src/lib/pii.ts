@@ -36,8 +36,11 @@ export function remaskText(text, mapping) {
   );
   for (const [tag, value] of pairs) {
     if (!value) continue;
-    const escaped = String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    out = out.replace(new RegExp(escaped, "g"), tag);
+    const escaped = String(value).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (!escaped) continue;
+    // Replace all occurrences of value outside existing tags (<TAG_...>)
+    const re = new RegExp(`(${escaped})|(<[A-Z_]+_\\d+[a-z]?>)`, "gi");
+    out = out.replace(re, (_match, p1, p2) => (p2 ? p2 : tag));
   }
   return out;
 }

@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useSession } from "@/context/SessionContext";
 import { useAnalysis } from "@/context/AnalysisContext";
-import { tagTypeFromTag, tagTypeLabel, parseTag, remaskText, TAG_REGEX } from "@/lib/pii";
+import { tagTypeFromTag, tagTypeLabel, parseTag, remaskText, unmaskText, TAG_REGEX } from "@/lib/pii";
 
 interface PiiReviewModalProps {
   open: boolean;
@@ -270,7 +270,8 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
   };
 
   // Compute live masked text preview
-  const liveMaskedText = remaskText(s.rawText || "", mapping);
+  const baseText = s.rawText || unmaskText(s.maskedText || "", s.piiMapping);
+  const liveMaskedText = remaskText(baseText, mapping);
 
   // Helper to render masked text with non-selectable, distinct entity chips
   // so dragging the mouse selects only the unmasked words easily.
