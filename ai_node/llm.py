@@ -306,6 +306,37 @@ def chat_json(messages: List[Dict], response_schema: Optional[Dict[str, Any]] = 
     return _extract_json(content)
 
 
+# Hard ceiling on the agentic loop's running context (chars, not tokens — a
+# cheap proxy that's good enough to bound cost/latency). Each tool call/result
+# pair is already capped in size individually (see tools.py/pasal_client.py),
+# but nothing capped the SUM across a multi-step ReAct run — a few big tool
+# results across 3 steps could still balloon the payload sent to the LLM.
+_CONTEXT_BUDGET_CHARS = 58_000
+
+
+def _trim_context(messages: List[Dict]) -> None:
+    """Mutates `messages` in place: once the total size crosses the budget,
+    shrink the CONTENT of older tool-result messages (oldest first), keeping
+    the system message, all tool_call_ids/roles, and the most recent exchange
+    intact — so the model stays "smart" about what just happened, and only
+    loses detail on turns it has already reasoned past."""
+    def total_len() -> int:
+        return sum(len(json.dumps(m, ensure_ascii=False)) for m in messages)
+
+    if total_len() <= _CONTEXT_BUDGET_CHARS:
+        return
+
+    # Trim oldest-first, skip the system message (index 0) and never touch
+    # the last exchange (assistant tool_calls + its tool results).
+    protected_from = max(1, len(messages) - 4)
+    for i in range(1, protected_from):
+        if total_len() <= _CONTEXT_BUDGET_CHARS:
+            return
+        m = messages[i]
+        if m.get("role") == "tool" and len(m.get("content", "")) > 400:
+            m["content"] = m["content"][:400] + " …[dipotong, hemat context]"
+
+
 def chat_agentic(
     messages: List[Dict],
     tools: Optional[List[Dict]] = None,
@@ -341,6 +372,7 @@ def chat_agentic(
 
     with httpx.Client(timeout=LLM_TIMEOUT) as client:
         for step in range(max_steps):
+            _trim_context(current_messages)
             payload: Dict[str, Any] = {
                 "model": LLM_MODEL,
                 "messages": current_messages,
@@ -420,6 +452,7 @@ def chat_agentic(
         # (masih di dalam blok `with` agar `client` belum ditutup)
         logger.info("[agent] Mencapai batas max_steps (%d), meminta jawaban final...", max_steps)
         try:
+            _trim_context(current_messages)
             wrap_hint = " sesuai skema JSON yang diminta." if schema else "."
             current_messages.append({
                 "role": "user",

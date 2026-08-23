@@ -154,7 +154,9 @@ async def analyze(req: AnalyzeReq):
     # pool supaya event loop tetap bisa melayani request lain selagi
     # menunggu.
     try:
-        parsed, citations, actions, debug_messages = await asyncio.to_thread(
+        # debug_messages (4th element) is the raw LLM message trace — internal
+        # troubleshooting only, never returned to a caller. Log it, don't ship it.
+        parsed, citations, actions, _debug_messages = await asyncio.to_thread(
             llm.chat_agentic,
             messages=messages,
             tools=tools.LEGAL_TOOLS_SCHEMA,
@@ -168,7 +170,7 @@ async def analyze(req: AnalyzeReq):
         raise HTTPException(status_code=502, detail=f"Gagal memanggil LLM: {e}")
 
     # 3) Normalisasi output agar selalu sesuai kontrak
-    return _normalize(parsed, req.mode, citations, actions, debug_messages)
+    return _normalize(parsed, req.mode, citations, actions)
 
 
 def _normalize(
@@ -176,7 +178,6 @@ def _normalize(
     mode: str,
     citations: List[Dict],
     actions: List[Dict[str, Any]] = None,
-    debug_messages: List[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     reply = parsed.get("reply") or parsed.get("summary") or ""
     risks = parsed.get("risks") if isinstance(parsed.get("risks"), list) else []
@@ -224,6 +225,4 @@ def _normalize(
         "risks": norm_risks,
         "citations": merged_cites,
         "actions": actions or [],
-        "debug": {"llm_messages": debug_messages or []},
-        "engine": f"ai-node/{VERSION} ({masker.engine_name()} + RAG + LLM:{llm.LLM_MODEL})",
     }

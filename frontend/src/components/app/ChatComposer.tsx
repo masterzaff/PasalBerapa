@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Paperclip, ArrowUp, X, Loader2, ShieldAlert, FileText, Sparkles, FileCheck2, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { useSession } from "@/context/SessionContext";
 import { useAnalysis } from "@/context/AnalysisContext";
@@ -55,6 +56,15 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
   const isGuest = !user;
   const userTurns = s.messages.filter((m) => m.role === "user").length;
   const isGuestLimitReached = isGuest && userTurns >= 1;
+
+  // Mirrors backend/auth.py's HISTORY_TURN_CAP (10 msgs, ~5 user + 5 AI) and
+  // ai_node/prompts.py's preview_chars (12000) — once either is crossed, the
+  // server is already trimming what the AI actually sees, so surface that.
+  const HISTORY_TURN_CAP = 10;
+  const DOC_PREVIEW_CHAR_CAP = 12000;
+  const isContextFull =
+    s.messages.length > HISTORY_TURN_CAP ||
+    (s.maskedText ? s.maskedText.length > DOC_PREVIEW_CHAR_CAP : false);
 
   useEffect(() => {
     setMounted(true);
@@ -341,7 +351,27 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
         ) : hero ? (
           <span>PDF opsional · bisa langsung nanya</span>
         ) : (
-          <span>Jawaban bisa keliru — tetap cek dokumen aslinya ya.</span>
+          <span>
+            Jawaban bisa keliru — tetap cek dokumen aslinya ya
+            {isContextFull && (
+              <>
+                {" "}·{" "}
+                <Popover>
+                  <PopoverTrigger className="underline decoration-dotted underline-offset-2 hover:text-foreground">
+                    Konteks dibatasi
+                  </PopoverTrigger>
+                  <PopoverContent align="center" className="text-left text-xs">
+                    <p className="mb-1 font-medium text-foreground">Kenapa AI kadang terasa lupa?</p>
+                    <p className="text-muted-foreground">
+                      Agar cepat dan efisien, AI mengingat bagian terbaru dari
+                      percakapan dan dokumenmu. Sebutkan kembali detail
+                      pada pertanyaan berikutnya agar AI bisa memahami konteksnya lagi.
+                    </p>
+                  </PopoverContent>
+                </Popover>
+              </>
+            )}
+          </span>
         )}
       </div>
 

@@ -367,13 +367,18 @@ def _new_message_id() -> str:
     return "msg_" + uuid.uuid4().hex[:9]
 
 
+HISTORY_TURN_CAP = 10  # ~5 user turns + 5 AI replies — keep in sync with
+# ai_node/prompts.py's build_messages() slice and the frontend's "Konteks
+# dibatasi" warning threshold.
+
+
 def _build_history(messages: List[dict], exclude_id: Optional[str] = None) -> List[dict]:
     hist = [
         {"role": m.get("role"), "content": m.get("content", "")}
         for m in messages
         if m.get("role") and not m.get("error") and m.get("id") != exclude_id
     ]
-    return hist[-8:]
+    return hist[-HISTORY_TURN_CAP:]
 
 
 async def _call_analyze(masked_text, mode, question, history):
@@ -543,7 +548,6 @@ async def send_message(
             "id": c.id, "version": c.version, "title": c.title,
             "user_message": user_msg, "assistant_message": assistant_msg,
             "risks": c.risks, "risk_score": c.risk_score, "citations": c.citations,
-            "debug": data.get("debug"),
         }
     except HTTPException:
         await db.rollback()

@@ -75,14 +75,15 @@ async def api_root():
 
 @api_router.get("/health")
 async def health_check():
+    # Public, unauthenticated route — only ever report liveness. ai_node's own
+    # /health carries internals (LLM model name, PII engine, token counts) that
+    # have no reason to leave the private docker network.
     ai_status = "offline"
-    ai_detail = None
     if ai_client.client:
         try:
             res = await ai_client.client.get("/health", timeout=3.0)
-            if res.status_code == 200:
+            if res.status_code == 200 and res.json().get("status") in ("ok", "degraded"):
                 ai_status = "online"
-                ai_detail = res.json()
         except Exception:
             pass
     return {
@@ -90,7 +91,6 @@ async def health_check():
         "service": "pasalberapa-backend",
         "database": "postgresql",
         "ai_node": ai_status,
-        "ai_detail": ai_detail,
         "version": "1.0.0"
     }
 
