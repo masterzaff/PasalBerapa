@@ -297,7 +297,7 @@ export default function Landing({ onOpenAuth }) {
             <div className="mx-auto mt-28 max-w-xl rounded-3xl border-2 border-dashed border-primary/50 bg-card/80 p-10 text-center shadow-lg">
               <UploadCloud className="mx-auto h-10 w-10 text-primary" />
               <p className="mt-3 font-display text-2xl font-semibold">
-                {isBisnis ? "Lepaskan PDF Kontrak Bisnis di Sini" : "Lepasin PDF di sini"}
+                {isBisnis ? "Lepaskan PDF/Foto Kontrak Bisnis di Sini" : "Lepasin PDF atau foto dokumen di sini"}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {isBisnis

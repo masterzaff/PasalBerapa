@@ -318,7 +318,13 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
         )}
       </div>
 
-      <input ref={fileRef} type="file" accept="application/pdf,.pdf" className="hidden" onChange={onFile} />
+      <input
+        ref={fileRef}
+        type="file"
+        accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,image/bmp,image/gif,.jpg,.jpeg,.png,.webp,.bmp,.gif"
+        className="hidden"
+        onChange={onFile}
+      />
     </div>
   );
 }

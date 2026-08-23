@@ -146,3 +146,32 @@ export async function getPdfMeta(file) {
   const pdf = await getPdf(file);
   return { numPages: pdf.numPages };
 }
+
+// OCR a standalone photo (JPG/PNG/etc) — same engine as the per-page OCR
+// fallback above, just fed the image directly instead of a rendered PDF page.
+// Returns the same shape as extractPdf so callers don't need to branch.
+export async function extractImage(file, options = {}) {
+  const { onProgress = () => {}, signal } = options;
+  const isCancelled = () => signal && signal.aborted;
+
+  onProgress({ stage: "ocr-init", percent: 5, message: "Menyiapkan mesin OCR (bahasa Indonesia)…" });
+  if (isCancelled()) throw new DOMException("Dibatalkan", "AbortError");
+
+  const worker = await createWorker("ind");
+  try {
+    onProgress({ stage: "ocr", page: 1, totalPages: 1, percent: 20, message: "Membaca foto…" });
+    const { data } = await worker.recognize(file);
+    if (isCancelled()) throw new DOMException("Dibatalkan", "AbortError");
+    const text = (data.text || "").trim();
+
+    onProgress({ stage: "done", percent: 100, message: "Ekstraksi selesai." });
+    return {
+      text,
+      pages: [{ page: 1, text, usedOcr: true, chars: text.length }],
+      usedOcr: true,
+      totalPages: 1,
+    };
+  } finally {
+    try { await worker.terminate(); } catch (_) {}
+  }
+}
