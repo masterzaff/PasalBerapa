@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Shield, Lock, Trash2, Plus, Check, Eye, EyeOff, AlertTriangle, Sparkles, FileText, ArrowRight, Merge, X } from "lucide-react";
+import { Shield, Lock, Trash2, Plus, Check, Eye, EyeOff, AlertTriangle, Sparkles, FileText, ArrowRight, Merge, X, Flag } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useSession } from "@/context/SessionContext";
 import { useAnalysis } from "@/context/AnalysisContext";
+import { useAuth } from "@/context/AuthContext";
+import { authApi } from "@/lib/authApi";
+import { encryptMapping } from "@/lib/crypto";
 import { tagTypeFromTag, tagTypeLabel, parseTag, remaskText, unmaskText, TAG_REGEX } from "@/lib/pii";
+import ReportMessageModal from "@/components/app/ReportMessageModal";
 
 interface PiiReviewModalProps {
   open: boolean;
@@ -27,7 +31,9 @@ interface PiiReviewModalProps {
 
 export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalProps) {
   const s = useSession();
+  const { token, encKey } = useAuth();
   const { runPending, cancelPending } = useAnalysis();
+  const [reportOpen, setReportOpen] = useState(false);
 
   // Closing without approving/skipping abandons the queued analysis. Route every
   // dismissal (Batal, Esc, overlay click) through cancelPending so the pending
@@ -343,14 +349,44 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
     return nodes;
   };
 
-  // Approve & Proceed
-  const handleConfirm = () => {
+  // Approve & Proceed. A mapping edited mid-conversation (s.convId already
+  // exists) is pushed to the server right away via the narrow mapping
+  // endpoint — the only thing the server can't compute itself, since only
+  // the client holds the key. Before the first message there's nothing
+  // saved yet, so there's nothing to push (the next sendMessage carries it).
+  const handleConfirm = async () => {
     s.setPiiMapping(mapping);
     s.setMaskedText(liveMaskedText);
     s.setPiiConfirmed(true);
     onOpenChange(false);
     toast.success(`Penyamaran disetujui (${Object.keys(mapping).length} data disensor).`);
+    if (s.convId) {
+      try {
+        const mappingEnc = encKey ? await encryptMapping(encKey, mapping || {}) : undefined;
+        await authApi.updateMapping(s.convId, { masked_text: liveMaskedText, pii_mapping_enc: mappingEnc }, token);
+      } catch (e) {
+        toast.error(e.message || "Gagal menyimpan perubahan sensor.");
+      }
+    }
     runPending();
+  };
+
+  // Report a masking problem (e.g. missed or wrongly-tagged PII). Works
+  // logged-out too — uses a sentinel message id scoped to this browser
+  // session. conversation_id is s.convId if one's been autosaved yet
+  // (logged-in or anonymous both autosave now — see ChatView's persist()).
+  const handleReportSubmit = async ({ reason, censoredExcerpt }) => {
+    try {
+      await authApi.setMessageFeedback(
+        `pii_review_${s.sessionId}`,
+        { type: "report", conversation_id: s.convId || null, report_reason: reason || null, censored_excerpt: censoredExcerpt },
+        token
+      );
+      toast.success("Laporan terkirim. Terima kasih.");
+    } catch (e) {
+      toast.error(e.message || "Gagal mengirim laporan.");
+      throw e;
+    }
   };
 
   // Skip / Unmask
@@ -641,16 +677,28 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
 
         {/* Footer */}
         <div className="px-3 py-2 sm:px-5 sm:py-3 border-t bg-muted/30 flex flex-row items-center justify-between gap-1.5 sm:gap-2 shrink-0">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleSkip}
-            className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10 px-2 sm:px-3 h-8 sm:h-9 transition-colors font-medium"
-          >
-            <span className="sm:hidden">Lewati</span>
-            <span className="hidden sm:inline">Lewati Penyamaran</span>
-          </Button>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleSkip}
+              className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10 px-2 sm:px-3 h-8 sm:h-9 transition-colors font-medium"
+            >
+              <span className="sm:hidden">Lewati</span>
+              <span className="hidden sm:inline">Lewati Penyamaran</span>
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setReportOpen(true)}
+              className="h-8 w-8 sm:h-9 sm:w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+              title="Laporkan masalah penyamaran"
+            >
+              <Flag className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            </Button>
+          </div>
           <Button
             type="button"
             size="sm"
@@ -663,6 +711,15 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
           </Button>
         </div>
       </DialogContent>
+
+      <ReportMessageModal
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        onSubmit={handleReportSubmit}
+        sensitiveMapping={mapping}
+        title="Laporkan Masalah Penyamaran"
+        description="Ceritakan jika ada data pribadi yang tidak tersamar, atau tersamar secara keliru."
+      />
 
       {/* Confirmation Dialog for Auto-confirm */}
       <Dialog open={confirmSkipDialogOpen} onOpenChange={setConfirmSkipDialogOpen}>

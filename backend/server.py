@@ -1,7 +1,6 @@
-import os
 import logging
+import os
 from pathlib import Path
-from typing import Optional
 from contextlib import asynccontextmanager
 
 import httpx
@@ -9,6 +8,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, APIRouter, Request, Response, HTTPException
 from starlette.middleware.cors import CORSMiddleware
 
+import ai_client
 from database import init_db, close_db
 from auth import auth_router
 
@@ -21,21 +21,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger("pasalberapa.backend")
 
-AI_NODE_URL = os.environ.get("AI_NODE_URL", "http://ai_node:8000").rstrip("/")
-ai_client: Optional[httpx.AsyncClient] = None
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global ai_client
     # Startup: initialize PostgreSQL tables & AI Node reverse proxy client
     logger.info("Starting PasalBerapa Backend Server...")
     await init_db()
-    ai_client = httpx.AsyncClient(base_url=AI_NODE_URL, timeout=60.0)
+    await ai_client.start()
     yield
     # Shutdown: cleanly close database & HTTP client
     logger.info("Shutting down PasalBerapa Backend Server...")
-    if ai_client:
-        await ai_client.aclose()
+    await ai_client.stop()
     await close_db()
 
 app = FastAPI(
@@ -79,9 +74,9 @@ async def api_root():
 async def health_check():
     ai_status = "offline"
     ai_detail = None
-    if ai_client:
+    if ai_client.client:
         try:
-            res = await ai_client.get("/health", timeout=3.0)
+            res = await ai_client.client.get("/health", timeout=3.0)
             if res.status_code == 200:
                 ai_status = "online"
                 ai_detail = res.json()
@@ -101,11 +96,11 @@ async def health_check():
 # ---------------------------------------------------------------------------
 @api_router.post("/mask")
 async def proxy_mask(request: Request):
-    if not ai_client:
+    if not ai_client.client:
         raise HTTPException(status_code=503, detail="AI Service client belum diinisialisasi")
     try:
         body = await request.json()
-        res = await ai_client.post("/mask", json=body, timeout=30.0)
+        res = await ai_client.client.post("/mask", json=body, timeout=30.0)
         return Response(content=res.content, status_code=res.status_code, media_type="application/json")
     except (httpx.ConnectError, httpx.ConnectTimeout):
         raise HTTPException(status_code=503, detail="AI Node sedang offline atau belum siap")
@@ -117,11 +112,11 @@ async def proxy_mask(request: Request):
 
 @api_router.post("/analyze")
 async def proxy_analyze(request: Request):
-    if not ai_client:
+    if not ai_client.client:
         raise HTTPException(status_code=503, detail="AI Service client belum diinisialisasi")
     try:
         body = await request.json()
-        res = await ai_client.post("/analyze", json=body, timeout=90.0)
+        res = await ai_client.client.post("/analyze", json=body, timeout=90.0)
         return Response(content=res.content, status_code=res.status_code, media_type="application/json")
     except (httpx.ConnectError, httpx.ConnectTimeout):
         raise HTTPException(status_code=503, detail="AI Node sedang offline atau belum siap")

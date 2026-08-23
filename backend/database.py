@@ -6,7 +6,7 @@ from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, Text, DateTime, ForeignKey, Integer, select
+from sqlalchemy import String, Text, DateTime, ForeignKey, Integer, UniqueConstraint, select
 from sqlalchemy.dialects.postgresql import JSONB, JSON
 
 logger = logging.getLogger("pasalberapa.db")
@@ -57,7 +57,14 @@ class Conversation(Base):
     __tablename__ = "conversations"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    # Nullable: an anonymous report/feedback snapshot (see message_feedback
+    # below) is a masked-only conversation with no owner at all.
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True)
+    # Persistent per-browser secret (client localStorage), required to read/
+    # write an ownerless conversation. Set once at creation, only when
+    # user_id is null — knowing the conversation's own id is no longer
+    # sufficient on its own to open it.
+    anon_key: Mapped[str] = mapped_column(String(64), nullable=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False, default="Percakapan")
     doc_name: Mapped[str] = mapped_column(String(255), nullable=True)
     # Everything below is stored MASKED (<PERSON_1> etc.) or encrypted. The
@@ -83,6 +90,44 @@ class Conversation(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+class MessageFeedback(Base):
+    __tablename__ = "message_feedback"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    # Nullable: a logged-out visitor can react/report too (see /messages/{id}/feedback).
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True)
+    # Nullable only for the brief window before a just-started conversation
+    # has been saved/snapshotted at all. Normally populated — for a logged-in
+    # user it's their real saved conversation; for an anonymous one it's the
+    # ownerless snapshot created on first reaction (see report-snapshot route).
+    conversation_id: Mapped[str] = mapped_column(String(36), ForeignKey("conversations.id", ondelete="CASCADE"), index=True, nullable=True)
+    # Client-generated id (chat message "msg_xxx", or the "pii_review_<sessionId>"
+    # sentinel for a masking-review report) — not a DB foreign key, messages
+    # live inside Conversation.messages JSONB, not their own table.
+    message_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    # Same persistent per-browser secret as Conversation.anon_key — without
+    # it, two different anonymous browsers reacting to the same message_id
+    # would collide on the same row (user_id IS NULL matches both).
+    anon_key: Mapped[str] = mapped_column(String(64), nullable=True)
+    type: Mapped[str] = mapped_column(String(16), nullable=False)  # "up" | "down" | "report"
+    report_reason: Mapped[str] = mapped_column(Text, nullable=True)
+    # Optional, user-opted-in JSON dump of the REAL (decrypted) PII mapping —
+    # tag -> actual value — attached to a report so the team can review it
+    # with full context. Unlike everything else this server stores, this is
+    # a deliberate, explicit exception to "no readable PII server-side": the
+    # user chose to send it, off by default, with a clear warning in the UI.
+    censored_excerpt: Mapped[str] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        # One active reaction per user per message — clicking up/down/report
+        # replaces the row rather than accumulating one each, matching the
+        # "the other reaction is removed" UI behavior.
+        UniqueConstraint("user_id", "message_id", name="uq_message_feedback_user_message"),
+    )
+
 
 def _remask(value: str, mapping: dict) -> str:
     """Replace real values with their tags. Mirrors remaskText in
@@ -164,6 +209,9 @@ async def init_db():
                 "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS risk_score INTEGER",
                 "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS citations JSONB NOT NULL DEFAULT '[]'::jsonb",
                 "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS doc_meta JSONB",
+                "ALTER TABLE conversations ALTER COLUMN user_id DROP NOT NULL",
+                "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS anon_key VARCHAR(64)",
+                "ALTER TABLE message_feedback ADD COLUMN IF NOT EXISTS anon_key VARCHAR(64)",
             ):
                 await conn.execute(text(ddl))
             await _drop_plaintext_pii(conn)

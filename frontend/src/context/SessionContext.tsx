@@ -46,6 +46,10 @@ export function SessionProvider({ children }) {
 
   // Analysis
   const [messages, setMessages] = useState([]); // {id, role, mode, content, ts}
+  // Thumbs up/down/report per message: {messageId: "up"|"down"|"report"}.
+  // Server-backed (message_feedback table) — this is just a client-side
+  // cache so buttons render as active without an extra round trip.
+  const [feedback, setFeedback] = useState({});
   const [risks, setRisks] = useState([]);
   const [riskScore, setRiskScore] = useState(null);
   const [citations, setCitations] = useState([]);
@@ -73,6 +77,7 @@ export function SessionProvider({ children }) {
       if (snap.piiMapping) setPiiMapping(snap.piiMapping);
       if (snap.piiConfirmed) setPiiConfirmed(true);
       if (snap.messages) setMessages(snap.messages);
+      if (snap.feedback) setFeedback(snap.feedback);
       if (snap.risks) setRisks(snap.risks);
       if (snap.riskScore !== undefined) setRiskScore(snap.riskScore);
       if (snap.citations) setCitations(snap.citations);
@@ -101,6 +106,7 @@ export function SessionProvider({ children }) {
           piiMapping,
           piiConfirmed,
           messages,
+          feedback,
           risks,
           riskScore,
           citations,
@@ -118,7 +124,7 @@ export function SessionProvider({ children }) {
     } catch (_) {}
   }, [
     sessionId, file, rawText, extractInfo, maskedText, piiMapping,
-    piiConfirmed, messages, risks, riskScore, citations, convId, convTitle, convVersion,
+    piiConfirmed, messages, feedback, risks, riskScore, citations, convId, convTitle, convVersion,
   ]);
 
   // Everything derived from the currently attached document. Swapping or
@@ -150,6 +156,7 @@ export function SessionProvider({ children }) {
     setSessionId(id);
     resetDocument();
     setMessages([]);
+    setFeedback({});
     setConvId(null);
     setConvTitle(null);
     setConvVersion(0);
@@ -161,6 +168,7 @@ export function SessionProvider({ children }) {
   const loadConversation = useCallback(({
     id, messages: msgs, docName, title, piiMapping, maskedText, version,
     risks: loadedRisks, riskScore: loadedRiskScore, citations: loadedCitations, extractInfo: loadedExtractInfo,
+    feedback: loadedFeedback,
   } = {}) => {
     setSessionId(id || newSessionId());
     resetDocument();
@@ -174,6 +182,7 @@ export function SessionProvider({ children }) {
     // there is no raw text left to review — don't re-prompt on an empty doc.
     setPiiConfirmed(true);
     setMessages(Array.isArray(msgs) ? msgs : []);
+    setFeedback(loadedFeedback && typeof loadedFeedback === "object" ? loadedFeedback : {});
     setRisks(Array.isArray(loadedRisks) ? loadedRisks : []);
     setRiskScore(typeof loadedRiskScore === "number" ? loadedRiskScore : null);
     setCitations(Array.isArray(loadedCitations) ? loadedCitations : []);
@@ -205,6 +214,7 @@ export function SessionProvider({ children }) {
       piiConfirmed, setPiiConfirmed,
       showPiiModal, setShowPiiModal,
       messages, setMessages, addMessage,
+      feedback, setFeedback,
       risks, setRisks,
       riskScore, setRiskScore,
       citations, setCitations,
@@ -220,7 +230,7 @@ export function SessionProvider({ children }) {
     [
       sessionId, file, rawText, extractInfo, maskedText, piiMapping,
       piiConfirmed, showPiiModal,
-      messages, risks, riskScore, citations, convId, convTitle, convVersion, highlightExcerpt, addMessage,
+      messages, feedback, risks, riskScore, citations, convId, convTitle, convVersion, highlightExcerpt, addMessage,
       resetSession, resetDocument, loadConversation, hasDocument,
     ]
   );

@@ -2,7 +2,10 @@ import React, { createContext, useCallback, useContext, useRef, useState } from 
 import { toast } from "sonner";
 import { useSession } from "@/context/SessionContext";
 import { useConnection } from "@/context/ConnectionContext";
-import { maskPII, analyzeDocument, NotConfiguredError, CancelledError } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { authApi } from "@/lib/authApi";
+import { maskPII, NotConfiguredError } from "@/lib/api";
+import { encryptMapping } from "@/lib/crypto";
 import { unmaskText, remaskText } from "@/lib/pii";
 
 export const MODE_LABELS = {
@@ -12,11 +15,37 @@ export const MODE_LABELS = {
   chat: "Pertanyaan",
 };
 
+// extractInfo.pages[].text is raw/OCR'd document text — unmasked PII that must
+// never reach the server. Everything else (page count, whether OCR ran) is
+// just metadata, sent once (on the first message) so a resumed conversation
+// still shows its "N hlm · OCR" badge.
+function stripPageText(extractInfo) {
+  if (!extractInfo) return null;
+  const { pages, ...rest } = extractInfo;
+  return {
+    ...rest,
+    pages: Array.isArray(pages) ? pages.map(({ text, ...p }) => p) : [],
+  };
+}
+
+// Unmask an assistant reply (+ its citations) coming back from the server —
+// the server only ever sees/returns masked/tagged text.
+function unmaskAssistant(msg, mapping) {
+  if (!msg) return msg;
+  const content = msg.error ? msg.content : unmaskText(msg.content || "", mapping);
+  const citations = (msg.citations || []).map((c) => ({
+    ...c,
+    snippet: unmaskText(c.snippet || "", mapping),
+  }));
+  return { ...msg, content, citations };
+}
+
 const Ctx = createContext(null);
 
 export function AnalysisProvider({ children }) {
   const s = useSession();
   const conn = useConnection();
+  const { token, encKey } = useAuth();
   const [busy, setBusy] = useState(false);
   const [busyMode, setBusyMode] = useState(null);
   const [busyMessageId, setBusyMessageId] = useState(null);
@@ -83,6 +112,9 @@ export function AnalysisProvider({ children }) {
     return { text: s.rawText, mapping: {} };
   }, [s, conn]);
 
+  // Sends a new message OR regenerates an existing assistant reply. Editing a
+  // user message is handled separately by editUserMessage — the server
+  // chains that reply's regeneration itself, no round-trip through here.
   const executeAnalysis = useCallback(
     async ({ mode, question, customMaskedText, customMapping, regenerateMessageId }) => {
       if (!conn.analyzeConfigured) {
@@ -92,90 +124,81 @@ export function AnalysisProvider({ children }) {
       setBusy(true);
       setBusyMode(mode);
       setBusyMessageId(regenerateMessageId || null);
+
+      // Optimistic local bubble for a new question — shown instantly, then
+      // reconciled with the server-minted id/ts once the request resolves.
+      // Regenerate has nothing new to add up front; it mutates in place.
+      const tempUserId = regenerateMessageId ? null : "tmp_" + Math.random().toString(36).slice(2, 9);
       if (!regenerateMessageId) {
         const userContent = question || MODE_LABELS[mode] || "Analisis";
-        s.addMessage({ role: "user", mode, content: userContent });
+        s.addMessage({ id: tempUserId, role: "user", mode, content: userContent });
       }
 
       const controller = new AbortController();
       abortRef.current = controller;
 
       try {
-        const baseMapping = customMapping ?? s.piiMapping ?? {};
-        const effectiveQuestion = question || MODE_LABELS[mode] || "Analisis";
-        const { masked: maskedQuestion, mapping } = await maskQuestion(question, baseMapping);
-        const actualSentMasked = maskedQuestion || remaskText(effectiveQuestion, mapping);
-        // s.maskedText first: a conversation restored from storage has no raw
-        // text (never persisted) but does have the masked document, and without
-        // this the LLM would be answering follow-ups with no document at all.
-        const maskedText =
-          customMaskedText ?? (s.maskedText || (s.hasDocument ? remaskText(s.rawText, mapping) : ""));
+        const convId = s.convId || s.sessionId;
+        let mapping = customMapping ?? s.piiMapping ?? {};
+        let assistantOut;
+        let userOut = null;
+        let resultRisks, resultRiskScore, resultCitations;
 
-        const history = s.messages
-          .filter((m) => m.role && !m.error && m.id !== regenerateMessageId)
-          .slice(-8)
-          .map((m) => ({ role: m.role, content: remaskText(m.content, mapping) }));
-
-        const data = await analyzeDocument({
-          maskedText: maskedText || "",
-          mode,
-          question: maskedQuestion,
-          history,
-          sessionId: s.sessionId,
-          signal: controller.signal,
-        });
-
-        const replyRaw = data.reply || data.summary || "Selesai.";
-        const reply = unmaskText(replyRaw, mapping);
-        const citations = (data.citations || []).map((c) => ({
-          ...c,
-          snippet: unmaskText(c.snippet || "", mapping),
-        }));
-
-        const assistantMsg = {
-          role: "assistant",
-          mode,
-          content: reply,
-          citations,
-          actions: data.actions || [],
-          debugMessages: data.debug?.llm_messages || [],
-          // What actually left/entered the browser for this turn — masked
-          // question sent, raw masked reply received — for the "Pesan Asli"
-          // transparency view. Distinct from debugMessages (the full
-          // system/tool LLM conversation, dev-facing).
-          sentMasked: actualSentMasked,
-          receivedRaw: replyRaw,
-          error: false,
-        };
         if (regenerateMessageId) {
-          s.setMessages((prev) =>
-            prev.map((m) => {
-              if (m.id === regenerateMessageId) {
-                const prevSnapshot = {
-                  content: m.content,
-                  citations: m.citations,
-                  actions: m.actions,
-                  debugMessages: m.debugMessages,
-                  sentMasked: m.sentMasked,
-                  receivedRaw: m.receivedRaw,
-                  mode: m.mode,
-                  error: m.error || false,
-                  ts: m.ts || Date.now(),
-                };
-                const versions = [...(m.versions || []), prevSnapshot];
-                const { error: _err, ...mRest } = m;
-                return { ...mRest, ...assistantMsg, error: false, versions, ts: Date.now() };
-              }
-              return m;
-            })
-          );
+          const res = await authApi.regenerateMessage(convId, regenerateMessageId, token, controller.signal);
+          assistantOut = res.assistant_message;
+          resultRisks = res.risks; resultRiskScore = res.risk_score; resultCitations = res.citations;
         } else {
-          s.addMessage(assistantMsg);
+          const { masked: maskedQuestion, mapping: mergedMapping } = await maskQuestion(question, mapping);
+          mapping = mergedMapping;
+          // s.maskedText first: a conversation restored from storage has no raw
+          // text (never persisted) but does have the masked document, and without
+          // this the LLM would be answering follow-ups with no document at all.
+          const maskedText =
+            customMaskedText ?? (s.maskedText || (s.hasDocument ? remaskText(s.rawText, mapping) : ""));
+          // Only honored server-side on first creation of this conversation —
+          // an anonymous session has no key, so there is never a mapping to send.
+          const mappingEnc = !s.convId && encKey ? await encryptMapping(encKey, mapping || {}) : undefined;
+
+          const res = await authApi.sendMessage(
+            convId,
+            {
+              mode,
+              question: maskedQuestion,
+              masked_text: maskedText,
+              doc_name: s.file?.name || null,
+              doc_meta: stripPageText(s.extractInfo),
+              pii_mapping_enc: mappingEnc,
+            },
+            token,
+            controller.signal
+          );
+          if (!s.convId) s.setConvId(convId);
+          if (typeof res.version === "number") s.setConvVersion(res.version);
+          if (res.title) s.setConvTitle(res.title);
+          userOut = res.user_message;
+          assistantOut = res.assistant_message;
+          resultRisks = res.risks; resultRiskScore = res.risk_score; resultCitations = res.citations;
         }
 
-        if (Array.isArray(data.risks)) {
+        const displayAssistant = unmaskAssistant(assistantOut, mapping);
+
+        if (regenerateMessageId) {
+          s.setMessages((prev) =>
+            prev.map((m) => (m.id === regenerateMessageId ? { ...displayAssistant, id: m.id } : m))
+          );
+        } else {
+          s.setMessages((prev) => {
+            const withRealUser = prev.map((m) =>
+              m.id === tempUserId ? { ...m, id: userOut.id, ts: userOut.ts } : m
+            );
+            return [...withRealUser, displayAssistant];
+          });
+        }
+
+        if (Array.isArray(resultRisks)) {
           s.setRisks(
-            data.risks.map((r, i) => ({
+            resultRisks.map((r, i) => ({
               id: r.id || `risk_${i}`,
               level: r.level || "warning",
               title: unmaskText(r.title || "Poin", mapping),
@@ -186,15 +209,16 @@ export function AnalysisProvider({ children }) {
             }))
           );
         }
+        if (typeof resultRiskScore === "number") s.setRiskScore(resultRiskScore);
+        if (Array.isArray(resultCitations)) {
+          s.setCitations(resultCitations.map((c) => ({ ...c, snippet: unmaskText(c.snippet || "", mapping) })));
+        }
 
-        if (typeof data.risk_score === "number") s.setRiskScore(data.risk_score);
-        if (Array.isArray(data.citations)) s.setCitations(citations);
-
-        return data;
+        return { assistant_message: displayAssistant };
       } catch (e) {
         // A cancel is a deliberate act, not a failure: no error bubble, no
         // toast. The user's own turn stays so they can edit or retry from it.
-        if (e instanceof CancelledError) {
+        if (e.name === "AbortError") {
           toast.info("Analisis dibatalkan.");
         } else {
           const errorMsg = {
@@ -208,7 +232,10 @@ export function AnalysisProvider({ children }) {
               prev.map((m) => (m.id === regenerateMessageId ? { ...m, ...errorMsg, ts: Date.now() } : m))
             );
           } else {
-            s.addMessage(errorMsg);
+            s.setMessages((prev) => [
+              ...prev.map((m) => (m.id === tempUserId ? { ...m, id: "msg_" + Math.random().toString(36).slice(2, 9) } : m)),
+              { id: "msg_" + Math.random().toString(36).slice(2, 9), ts: Date.now(), ...errorMsg },
+            ]);
           }
         }
         if (!(e instanceof NotConfiguredError)) toast.error(e.message || "Analisis gagal.");
@@ -220,7 +247,7 @@ export function AnalysisProvider({ children }) {
         setBusyMessageId(null);
       }
     },
-    [s, conn, maskQuestion]
+    [s, conn, maskQuestion, token, encKey]
   );
 
   const run = useCallback(
@@ -255,6 +282,9 @@ export function AnalysisProvider({ children }) {
     [s, ensureMasked, executeAnalysis]
   );
 
+  // Edit a user message. The server chains regenerating the following
+  // assistant reply (if any) into the same request — no separate
+  // run({regenerateMessageId}) round-trip needed from here anymore.
   const editUserMessage = useCallback(
     async ({ messageId, newContent }) => {
       const trimmed = (newContent || "").trim();
@@ -262,37 +292,66 @@ export function AnalysisProvider({ children }) {
 
       const idx = s.messages.findIndex((m) => m.id === messageId);
       if (idx === -1) return;
-
       const targetUserMsg = s.messages[idx];
       if (targetUserMsg.content === trimmed) return;
 
-      const prevUserSnapshot = {
-        content: targetUserMsg.content,
-        mode: targetUserMsg.mode,
-        ts: targetUserMsg.ts || Date.now(),
-      };
-      const versions = [...(targetUserMsg.versions || []), prevUserSnapshot];
-
-      // Update user message in-place with archived version history
-      s.setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === messageId
-            ? { ...msg, content: trimmed, versions, ts: Date.now() }
-            : msg
-        )
-      );
-
-      // If followed immediately by an assistant message, regenerate that assistant response
       const nextMsg = s.messages[idx + 1];
-      const regenerateMessageId = nextMsg && nextMsg.role === "assistant" ? nextMsg.id : undefined;
+      const hasFollowingAssistant = nextMsg && nextMsg.role === "assistant";
 
-      return run({
-        mode: targetUserMsg.mode || "chat",
-        question: trimmed,
-        regenerateMessageId,
-      });
+      setBusy(true);
+      setBusyMode(targetUserMsg.mode || "chat");
+      setBusyMessageId(hasFollowingAssistant ? nextMsg.id : null);
+
+      try {
+        const convId = s.convId || s.sessionId;
+        const mapping = s.piiMapping || {};
+        const { masked: maskedContent, mapping: mergedMapping } = await maskQuestion(trimmed, mapping);
+
+        const res = await authApi.editMessage(convId, messageId, { content: maskedContent }, token);
+
+        const displayUser = { ...res.user_message, content: trimmed };
+        const displayAssistant = res.assistant_message ? unmaskAssistant(res.assistant_message, mergedMapping) : null;
+
+        s.setMessages((prev) => {
+          const next = prev.map((m) => (m.id === messageId ? displayUser : m));
+          if (!displayAssistant) return next;
+          const followIdx = next.findIndex((m) => m.id === messageId) + 1;
+          const following = next[followIdx];
+          if (following && following.role === "assistant") {
+            next[followIdx] = { ...displayAssistant, id: following.id };
+            return [...next];
+          }
+          // No prior assistant reply existed — insert the new one right after.
+          return [...next.slice(0, followIdx), displayAssistant, ...next.slice(followIdx)];
+        });
+
+        if (typeof res.version === "number") s.setConvVersion(res.version);
+        if (Array.isArray(res.risks)) {
+          s.setRisks(
+            res.risks.map((r, i) => ({
+              id: r.id || `risk_${i}`,
+              level: r.level || "warning",
+              title: unmaskText(r.title || "Poin", mergedMapping),
+              explanation: unmaskText(r.explanation || "", mergedMapping),
+              suggestion: unmaskText(r.suggestion || "", mergedMapping),
+              article_refs: r.article_refs || [],
+              source_excerpt: unmaskText(r.source_excerpt || "", mergedMapping),
+            }))
+          );
+        }
+        if (typeof res.risk_score === "number") s.setRiskScore(res.risk_score);
+        if (Array.isArray(res.citations)) {
+          s.setCitations(res.citations.map((c) => ({ ...c, snippet: unmaskText(c.snippet || "", mergedMapping) })));
+        }
+      } catch (e) {
+        toast.error(e.message || "Gagal mengedit pesan.");
+      } finally {
+        setBusy(false);
+        setBusyMode(null);
+        setBusyMessageId(null);
+      }
     },
-    [s, run]
+    [s, maskQuestion, token]
   );
 
   const runPending = useCallback(async () => {

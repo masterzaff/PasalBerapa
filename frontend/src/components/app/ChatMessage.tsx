@@ -1,11 +1,14 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
-import { Bot, User, BookMarked, Copy, Check, Scale, ShieldAlert, Wrench, ChevronDown, RotateCw, Eye, Pencil } from "lucide-react";
+import { Bot, User, BookMarked, Copy, Check, Scale, ShieldAlert, Wrench, ChevronDown, RotateCw, Eye, Pencil, ThumbsUp, ThumbsDown, Flag } from "lucide-react";
 import { MODE_LABELS, useAnalysis } from "@/context/AnalysisContext";
 import { useSession } from "@/context/SessionContext";
+import { useAuth } from "@/context/AuthContext";
+import { authApi } from "@/lib/authApi";
 import { toast } from "sonner";
 import OriginalMessageModal from "@/components/app/OriginalMessageModal";
+import ReportMessageModal from "@/components/app/ReportMessageModal";
 
 // Komponen markdown minimal — cukup buat gaya balasan LLM (bold, list, paragraf, link).
 const MARKDOWN_COMPONENTS = {
@@ -42,12 +45,16 @@ export function Message({ m }) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [citationsOpen, setCitationsOpen] = useState(false);
   const [originalOpen, setOriginalOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [feedbackBusy, setFeedbackBusy] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(m.content || "");
   const s = useSession();
+  const { token } = useAuth();
   const { run, editUserMessage, busy: analyzing, busyMessageId } = useAnalysis();
   const isThisMessageBusy = m.role === "assistant" && busyMessageId === m.id;
+  const currentFeedback = s.feedback?.[m.id];
 
   // Nearest preceding USER turn — messages[i-1] is not necessarily one (an
   // errored reply, or a mode reply, can sit directly above this message).
@@ -97,6 +104,43 @@ export function Message({ m }) {
     setCopied(true);
     toast.success("Pesan disalin ke clipboard.");
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleThumb = async (type) => {
+    if (feedbackBusy) return;
+    setFeedbackBusy(true);
+    try {
+      if (currentFeedback === type) {
+        await authApi.clearMessageFeedback(m.id, token);
+        s.setFeedback((prev) => {
+          const next = { ...prev };
+          delete next[m.id];
+          return next;
+        });
+      } else {
+        await authApi.setMessageFeedback(m.id, { type, conversation_id: s.convId || null }, token);
+        s.setFeedback((prev) => ({ ...prev, [m.id]: type }));
+      }
+    } catch (e) {
+      toast.error(e.message || "Gagal mengirim masukan.");
+    } finally {
+      setFeedbackBusy(false);
+    }
+  };
+
+  const handleReportSubmit = async ({ reason, censoredExcerpt }) => {
+    try {
+      await authApi.setMessageFeedback(
+        m.id,
+        { type: "report", conversation_id: s.convId || null, report_reason: reason || null, censored_excerpt: censoredExcerpt },
+        token
+      );
+      s.setFeedback((prev) => ({ ...prev, [m.id]: "report" }));
+      toast.success("Laporan terkirim. Terima kasih.");
+    } catch (e) {
+      toast.error(e.message || "Gagal mengirim laporan.");
+      throw e;
+    }
   };
 
   if (isUser) {
@@ -315,6 +359,46 @@ export function Message({ m }) {
                   <Eye className="h-3 w-3" />
                   <span>Pesan Asli</span>
                 </button>
+                <span className="w-px h-3.5 bg-border mx-0.5" aria-hidden="true" />
+                <button
+                  type="button"
+                  onClick={() => handleThumb("up")}
+                  disabled={feedbackBusy}
+                  className={`inline-flex items-center px-2 py-0.5 rounded-md transition-colors disabled:opacity-50 ${
+                    currentFeedback === "up"
+                      ? "text-[hsl(var(--risk-safe))] bg-[hsl(var(--risk-safe))]/10"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                  title="Jawaban ini membantu"
+                >
+                  <ThumbsUp className={`h-3 w-3 ${currentFeedback === "up" ? "fill-current" : ""}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleThumb("down")}
+                  disabled={feedbackBusy}
+                  className={`inline-flex items-center px-2 py-0.5 rounded-md transition-colors disabled:opacity-50 ${
+                    currentFeedback === "down"
+                      ? "text-destructive bg-destructive/10"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                  title="Jawaban ini kurang membantu"
+                >
+                  <ThumbsDown className={`h-3 w-3 ${currentFeedback === "down" ? "fill-current" : ""}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReportOpen(true)}
+                  disabled={feedbackBusy}
+                  className={`inline-flex items-center px-2 py-0.5 rounded-md transition-colors disabled:opacity-50 ${
+                    currentFeedback === "report"
+                      ? "text-destructive bg-destructive/10"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                  title="Laporkan pesan ini"
+                >
+                  <Flag className={`h-3 w-3 ${currentFeedback === "report" ? "fill-current" : ""}`} />
+                </button>
               </>
             )}
             {prevUserMsg && (
@@ -338,6 +422,14 @@ export function Message({ m }) {
         onOpenChange={setOriginalOpen}
         sentMasked={m.sentMasked}
         receivedRaw={m.receivedRaw}
+      />
+      <ReportMessageModal
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        onSubmit={handleReportSubmit}
+        sensitiveMapping={s.piiMapping}
+        title="Laporkan pesan ini"
+        description="Ceritakan apa yang salah dengan jawaban ini. Laporan membantu kami memperbaiki kualitas AI."
       />
     </motion.div>
   );

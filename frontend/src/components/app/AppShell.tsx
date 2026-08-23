@@ -56,9 +56,11 @@ export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShe
   }, [mounted, started, sessionId, pathname, router]);
 
   // 2) The server is the source of truth for a saved conversation, not
-  //    sessionStorage — so fetch on every /chat/:id mount, not only when the
-  //    local sessionId doesn't match. Keyed on the URL id (via triedRef, once
-  //    per mount) so navigating between two saved conversations restores each.
+  //    sessionStorage — logged in or not (an anonymous conversation is
+  //    saved masked/ownerless too, see ChatView's persist()) — so fetch on
+  //    every /chat/:id mount, not only when the local sessionId doesn't
+  //    match. Keyed on the URL id (via triedRef, once per mount) so
+  //    navigating between two saved conversations restores each.
   //
   //    When the local sessionId already matches urlId (e.g. sessionStorage
   //    already holds this conversation), paint from that instantly — no
@@ -78,10 +80,6 @@ export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShe
     if (triedRef.current === urlId) return;
     triedRef.current = urlId;
     const isFreshLoad = sessionId !== urlId;
-    if (!token) {
-      if (isFreshLoad) router.replace("/");
-      return; // logged out: nothing server-side to reconcile with
-    }
     if (isFreshLoad) setRestoring(true);
     authApi
       .getConversation(urlId, token)
@@ -89,7 +87,12 @@ export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShe
         const serverVersion = typeof d.version === "number" ? d.version : 0;
         if (!isFreshLoad && serverVersion < convVersionRef.current) return;
         const h = await hydrateConversation(d, encKey);
-        loadConversation({ ...h, id: urlId });
+        // Feedback lookup requires ownership (login), so it's a best-effort
+        // no-op for an anonymous restore rather than a hard requirement.
+        const feedback = token
+          ? await authApi.getConversationFeedback(urlId, token).catch(() => ({}))
+          : {};
+        loadConversation({ ...h, id: urlId, feedback });
         if (h.locked) toast.info("Data pribadi terkunci — masukkan kata sandi untuk membukanya.");
       })
       .catch(() => { if (isFreshLoad) router.replace("/"); })

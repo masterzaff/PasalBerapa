@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { FileText, Gauge, Lock, Bot, FileCheck2, Scale, Loader2, MoreVertical, Pencil, Trash2, Check } from "lucide-react";
+import { FileText, Gauge, Lock, Bot, FileCheck2, Scale, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -26,21 +26,6 @@ import { useAnalysis, MODE_LABELS } from "@/context/AnalysisContext";
 import { useUI } from "@/context/UIContext";
 import { useAuth } from "@/context/AuthContext";
 import { authApi } from "@/lib/authApi";
-import { remaskMessages, remaskText, remaskRisks, remaskCitations } from "@/lib/pii";
-import { encryptMapping } from "@/lib/crypto";
-
-// extractInfo.pages[].text is the raw/OCR'd document text — unmasked PII that
-// must never reach the server. Everything else (page number, whether OCR ran,
-// char count) is just metadata, kept so a resumed conversation still shows
-// its "N hlm · OCR" badge.
-function stripPageText(extractInfo) {
-  if (!extractInfo) return null;
-  const { pages, ...rest } = extractInfo;
-  return {
-    ...rest,
-    pages: Array.isArray(pages) ? pages.map(({ text, ...p }) => p) : [],
-  };
-}
 
 function PanelButton({ onClick, icon: Icon, label, count, testId }) {
   return (
@@ -58,19 +43,14 @@ export default function ChatView({ onOpenAuth }) {
   const s = useSession();
   const { busy: analyzing, busyMode, busyMessageId } = useAnalysis();
   const ui = useUI();
-  const { user, token, encKey } = useAuth();
+  const { user, token } = useAuth();
   const router = useRouter();
   const feedRef = useRef(null);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [renamingBusy, setRenamingBusy] = useState(false);
   const [renameValue, setRenameValue] = useState("");
-  const { convId, setConvId, convTitle, setConvTitle, convVersion, setConvVersion } = s;
-  const savingRef = useRef(false);
-  // Set when the server reports someone else wrote this conversation. Autosave
-  // stops rather than overwriting their turns with ours.
-  const [conflict, setConflict] = useState(false);
+  const { convId, setConvId, convTitle, setConvTitle } = s;
 
   // Stick to the bottom only when the user is already there. Scrolling back up
   // to re-read an earlier answer used to get yanked to the bottom by the next
@@ -94,113 +74,6 @@ export default function ChatView({ onOpenAuth }) {
     (firstUserMsg && firstUserMsg.content ? firstUserMsg.content.slice(0, 50) : null) ||
     "Obrolan hukum";
 
-  const persist = useCallback(
-    async (titleOverride) => {
-      if (!user || s.messages.length === 0 || savingRef.current) return;
-      savingRef.current = true;
-      setSaving(true);
-      try {
-        const title =
-          titleOverride ||
-          convTitle ||
-          s.file?.name ||
-          (firstUserMsg && firstUserMsg.content ? firstUserMsg.content.slice(0, 60) : "Percakapan");
-        // Mask at the boundary: React state holds real values for display, but
-        // nothing readable may reach the server. debugMessages is the full
-        // system/tool LLM request — dev-only, not worth persisting.
-        // sentMasked/receivedRaw ARE persisted: unlike debugMessages they're
-        // already in masked/tag form (same trust level as `content` after
-        // remaskMessages below), and they're what the "Pesan Asli" viewer
-        // shows — without this a refresh loses the one thing that view is for.
-        const stripped = s.messages.map(({ debugMessages, ...rest }) => rest);
-        const persistMessages = remaskMessages(stripped, s.piiMapping);
-        const maskedText = s.maskedText || remaskText(s.rawText || "", s.piiMapping);
-        const risks = remaskRisks(s.risks, s.piiMapping);
-        const citations = remaskCitations(s.citations, s.piiMapping);
-        const docMeta = stripPageText(s.extractInfo);
-        // Encrypted client-side; the server stores an opaque blob. Without a
-        // key (locked session) we simply don't touch what's already stored.
-        const mappingEnc = encKey
-          ? await encryptMapping(encKey, s.piiMapping || {})
-          : undefined;
-
-        let res;
-        if (convId) {
-          res = await authApi.updateConversation(
-            convId,
-            {
-              expected_version: convVersion,
-              title,
-              messages: persistMessages,
-              masked_text: maskedText,
-              pii_mapping_enc: mappingEnc,
-              risks,
-              risk_score: s.riskScore,
-              citations,
-              doc_meta: docMeta,
-            },
-            token
-          );
-        } else {
-          res = await authApi.saveConversation(
-            {
-              id: s.sessionId,
-              title,
-              messages: persistMessages,
-              doc_name: s.file?.name || null,
-              masked_text: maskedText,
-              pii_mapping_enc: mappingEnc,
-              risks,
-              risk_score: s.riskScore,
-              citations,
-              doc_meta: docMeta,
-            },
-            token
-          );
-          setConvId(res.id);
-        }
-        if (typeof res?.version === "number") setConvVersion(res.version);
-        if (titleOverride) setConvTitle(titleOverride);
-        setSaved(true);
-        return true;
-      } catch (e) {
-        // 409: another tab (or device) wrote this conversation since we loaded
-        // it. Autosave overwrites wholesale, so continuing would delete their
-        // turns — stop and tell the user instead of silently winning the race.
-        if (/sudah diubah di tempat lain/i.test(e?.message || "")) {
-          setConflict(true);
-          toast.error("Percakapan ini diubah di tab/perangkat lain. Muat ulang untuk melanjutkan.");
-        }
-        return false;
-      } finally {
-        savingRef.current = false;
-        setSaving(false);
-      }
-    },
-    [user, s.messages, s.file, s.piiMapping, s.maskedText, s.rawText, s.sessionId,
-     s.risks, s.riskScore, s.citations, s.extractInfo,
-     encKey, convId, convTitle, convVersion, token, firstUserMsg, setConvId, setConvTitle, setConvVersion]
-  );
-
-  // persist() itself calls setConvVersion() on every successful save, which
-  // changes persist's own identity (convVersion is one of its deps). Listing
-  // `persist` directly in the autosave effect's deps therefore re-triggered
-  // the effect after every save it just did — re-saving the same unchanged
-  // messages, bumping the version again, forever. A ref decouples "call the
-  // latest persist" from "persist changed identity, so re-run me".
-  const persistRef = useRef(persist);
-  useEffect(() => { persistRef.current = persist; }, [persist]);
-
-  // Autosave: simpan otomatis tiap ada pesan baru (kalau sudah login).
-  // New messages invalidate "Tersimpan" immediately, otherwise the indicator
-  // keeps claiming saved state for content that hasn't been written yet.
-  useEffect(() => {
-    if (!user || analyzing || s.messages.length === 0 || conflict) return;
-    setSaved(false);
-    const t = setTimeout(() => { persistRef.current(); }, 1000);
-    return () => clearTimeout(t);
-  }, [s.messages, analyzing, user, conflict]);
-
   const openRename = () => {
     if (!user) { onOpenAuth(); return; }
     setRenameValue(headerTitle);
@@ -210,11 +83,18 @@ export default function ChatView({ onOpenAuth }) {
   const submitRename = async (e) => {
     e?.preventDefault?.();
     const title = renameValue.trim();
-    if (!title) return;
-    setRenaming(false);
-    const ok = await persist(title);
-    if (ok) toast.success("Judul diganti.");
-    else toast.error("Gagal ganti judul.");
+    if (!title || !convId) return;
+    setRenamingBusy(true);
+    try {
+      await authApi.renameConversation(convId, title, token);
+      setConvTitle(title);
+      setRenaming(false);
+      toast.success("Judul diganti.");
+    } catch (e) {
+      toast.error(e.message || "Gagal ganti judul.");
+    } finally {
+      setRenamingBusy(false);
+    }
   };
 
   const remove = async () => {
@@ -227,7 +107,6 @@ export default function ChatView({ onOpenAuth }) {
     } finally {
       setConvId(null);
       setConvTitle(null);
-      setSaved(false);
       s.resetSession();
       router.push("/");
     }
@@ -256,12 +135,6 @@ export default function ChatView({ onOpenAuth }) {
                 <Badge variant="secondary" className="shrink-0 text-[10px]">
                   {s.extractInfo.totalPages} hlm{s.extractInfo.usedOcr ? " · OCR" : ""}
                 </Badge>
-              )}
-              {user && s.messages.length > 0 && (
-                <span className="hidden shrink-0 items-center gap-1 text-[11px] text-muted-foreground sm:inline-flex" data-testid="autosave-indicator">
-                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : saved ? <Check className="h-3 w-3 text-[hsl(var(--risk-safe))]" /> : null}
-                  {saving ? "Menyimpan…" : saved ? "Tersimpan" : ""}
-                </span>
               )}
             </div>
             <div className="flex items-center gap-1.5">
@@ -397,7 +270,7 @@ export default function ChatView({ onOpenAuth }) {
               <Button type="button" variant="outline" size="sm" onClick={() => setRenaming(false)}>
                 Batal
               </Button>
-              <Button type="submit" size="sm" disabled={!renameValue.trim()} data-testid="rename-submit">
+              <Button type="submit" size="sm" disabled={!renameValue.trim() || renamingBusy} data-testid="rename-submit">
                 Simpan
               </Button>
             </DialogFooter>
