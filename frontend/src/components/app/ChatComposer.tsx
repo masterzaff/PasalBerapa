@@ -196,7 +196,13 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
       )}
 
       <div className={`rounded-[1.4rem] border bg-card shadow-sm transition-shadow focus-within:shadow-md ${hero ? "p-2" : "p-1.5"}`}>
-        {s.hasDocument && s.file && (
+        {/* Once a message has gone out, the document is already visible in
+            the "Dokumen" panel (sidebar) — showing it again here just to
+            offer a remove button that would blank the maskedText/piiMapping
+            follow-ups depend on (see maskQuestion/executeAnalysis) is both
+            redundant and a footgun. Only show the chip pre-send, when it's
+            a pending attachment the user may still want to cancel. */}
+        {s.hasDocument && s.file && s.messages.length === 0 && (
           <div className="mx-1 mb-1 mt-1 flex items-center justify-between gap-2 rounded-lg bg-secondary px-2.5 py-1.5 text-xs">
             <div className="flex min-w-0 items-center gap-2">
               <FileCheck2 className="h-3.5 w-3.5 shrink-0 text-primary" />
@@ -207,24 +213,16 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
                 </span>
               )}
             </div>
-            {/* Once a message has already gone out with this document, its
-                masked text + PII mapping are what follow-up questions rely on
-                for context (see maskQuestion/executeAnalysis) — removing it
-                here would silently blank that context. Only offer removal
-                before the document has actually been used, when it's a true
-                "cancel this attachment", not a destructive edit. */}
-            {s.messages.length === 0 && (
-              <button
-                type="button"
-                onClick={removeFile}
-                data-testid="remove-document-button"
-                className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive focus-visible:outline-none"
-                title="Batal lampiran dokumen"
-                aria-label="Batal lampiran dokumen"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={removeFile}
+              data-testid="remove-document-button"
+              className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive focus-visible:outline-none"
+              title="Batal lampiran dokumen"
+              aria-label="Batal lampiran dokumen"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
         )}
         <div className="flex items-end gap-1.5">
