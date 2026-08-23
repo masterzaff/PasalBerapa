@@ -21,9 +21,32 @@ export class GatewayError extends Error {
   }
 }
 
-async function postJson(url, body, timeoutMs) {
+export class CancelledError extends Error {
+  constructor() {
+    super("Analisis dibatalkan.");
+    this.name = "CancelledError";
+    this.code = "CANCELLED";
+  }
+}
+
+// Combine the internal timeout with an optional caller-supplied signal, so a
+// user-initiated cancel and a timeout stay distinguishable (one is an error to
+// report, the other is not).
+function linkSignals(controller, external) {
+  if (!external) return () => {};
+  if (external.aborted) {
+    controller.abort();
+    return () => {};
+  }
+  const onAbort = () => controller.abort();
+  external.addEventListener("abort", onAbort, { once: true });
+  return () => external.removeEventListener("abort", onAbort);
+}
+
+async function postJson(url, body, timeoutMs, signal = null) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs || 60000);
+  const unlink = linkSignals(controller, signal);
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -42,12 +65,16 @@ async function postJson(url, body, timeoutMs) {
     return await res.json();
   } catch (err) {
     if (err.name === "AbortError") {
+      // Both a cancel and a timeout surface as AbortError; only the caller's
+      // signal tells them apart, and a cancel is not a failure to report.
+      if (signal?.aborted) throw new CancelledError();
       throw new GatewayError("Timeout — server kelamaan merespons.", 408);
     }
     if (err instanceof GatewayError) throw err;
     throw new GatewayError(err.message || "Gagal terhubung ke server.");
   } finally {
     clearTimeout(timer);
+    unlink();
   }
 }
 
@@ -75,13 +102,20 @@ export async function testConnection(cfg = getEndpoints()) {
   }
 }
 
-// PII masking: send raw extracted text, receive masked text + mapping.
+// PII masking: send raw text, receive masked text + mapping.
+// `knownMapping` continues an in-flight session so an already-tagged value keeps
+// its tag and new tags carry on numbering instead of restarting at _1 — required
+// when masking a chat question against a document that was already masked.
 // Expected response shape:
 //   { masked_text: string, mapping: {"<PERSON_1>":"Andi"}, entities: [{tag,type,value}] }
-export async function maskPII({ text, sessionId }, cfg = getEndpoints()) {
+export async function maskPII({ text, sessionId, knownMapping }, cfg = getEndpoints()) {
   const url = (cfg.piiEndpoint || "").trim();
   if (!url) throw new NotConfiguredError("PII Masking");
-  const data = await postJson(url, { text, session_id: sessionId }, cfg.timeoutMs);
+  const data = await postJson(
+    url,
+    { text, session_id: sessionId, known_mapping: knownMapping || null },
+    cfg.timeoutMs
+  );
   return {
     maskedText: data.masked_text ?? data.maskedText ?? text,
     mapping: data.mapping ?? {},
@@ -95,7 +129,7 @@ export async function maskPII({ text, sessionId }, cfg = getEndpoints()) {
 //   { reply, summary, risk_score, risks:[{id,level,title,explanation,article_refs,suggestion,source_excerpt}],
 //     citations:[{regulation,article,snippet,url}] }
 export async function analyzeDocument(
-  { maskedText, mode, question, history, sessionId },
+  { maskedText, mode, question, history, sessionId, signal },
   cfg = getEndpoints()
 ) {
   const url = (cfg.analyzeEndpoint || "").trim();
@@ -109,7 +143,8 @@ export async function analyzeDocument(
       history: history || [],
       session_id: sessionId,
     },
-    cfg.timeoutMs
+    cfg.timeoutMs,
+    signal
   );
   return data;
 }

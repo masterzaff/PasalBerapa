@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useRef, useState } from 
 import { toast } from "sonner";
 import { useSession } from "@/context/SessionContext";
 import { useConnection } from "@/context/ConnectionContext";
-import { maskPII, analyzeDocument, NotConfiguredError } from "@/lib/api";
+import { maskPII, analyzeDocument, NotConfiguredError, CancelledError } from "@/lib/api";
 import { unmaskText, remaskText } from "@/lib/pii";
 
 export const MODE_LABELS = {
@@ -23,6 +23,48 @@ export function AnalysisProvider({ children }) {
   // Set when a queued analysis is abandoned (PII review dismissed) so the
   // composer can hand the user their typed question back instead of losing it.
   const [restoredQuestion, setRestoredQuestion] = useState(null);
+  const abortRef = useRef(null);
+
+  const cancel = useCallback(() => {
+    if (abortRef.current) abortRef.current.abort();
+  }, []);
+
+  // Mask a free-text question before it leaves the browser.
+  //
+  // Two passes, cheapest and most reliable first:
+  //   1. remaskText against the mapping the document already established —
+  //      exact string substitution, zero false positives, no round-trip.
+  //   2. the masker, for PII the document never contained (a name typed from
+  //      memory, a pasted clause). `knownMapping` keeps tag numbering
+  //      continuous so it can't collide with the document's tags.
+  //
+  // Only the transported copy is masked; the user's own bubble keeps what they
+  // actually typed.
+  const maskQuestion = useCallback(
+    async (question, mapping) => {
+      if (!question) return { masked: question, mapping };
+      const remasked = remaskText(question, mapping);
+      if (!conn.maskConfigured) return { masked: remasked, mapping };
+      try {
+        const r = await maskPII({
+          text: remasked,
+          sessionId: s.sessionId,
+          knownMapping: mapping,
+        });
+        const merged = r.mapping || mapping;
+        if (r.entities?.length) {
+          s.setPiiMapping(merged);
+          s.setPiiEntities((prev) => [...(prev || []), ...r.entities]);
+        }
+        return { masked: r.maskedText || remasked, mapping: merged };
+      } catch (_) {
+        // Never block the question on the masker being down — pass 1 already
+        // covered everything the document taught us about.
+        return { masked: remasked, mapping };
+      }
+    },
+    [conn.maskConfigured, s]
+  );
 
   const ensureMasked = useCallback(async () => {
     if (s.maskedText && s.piiMapping && Object.keys(s.piiMapping).length > 0) {
@@ -30,7 +72,8 @@ export function AnalysisProvider({ children }) {
     }
     if (conn.maskConfigured) {
       try {
-        const r = await maskPII({ text: s.rawText, sessionId: s.sessionId });
+        // Document pass: no prior mapping, tags start fresh at _1.
+        const r = await maskPII({ text: s.rawText, sessionId: s.sessionId, knownMapping: null });
         s.setMaskedText(r.maskedText);
         s.setPiiMapping(r.mapping || {});
         s.setPiiEntities(r.entities || []);
@@ -56,8 +99,12 @@ export function AnalysisProvider({ children }) {
         s.addMessage({ role: "user", mode, content: userContent });
       }
 
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       try {
-        const mapping = customMapping ?? s.piiMapping ?? {};
+        const baseMapping = customMapping ?? s.piiMapping ?? {};
+        const { masked: maskedQuestion, mapping } = await maskQuestion(question, baseMapping);
         const maskedText = customMaskedText ?? (s.hasDocument ? (s.maskedText || remaskText(s.rawText, mapping)) : "");
 
         const history = s.messages
@@ -68,9 +115,10 @@ export function AnalysisProvider({ children }) {
         const data = await analyzeDocument({
           maskedText: maskedText || "",
           mode,
-          question,
+          question: maskedQuestion,
           history,
           sessionId: s.sessionId,
+          signal: controller.signal,
         });
 
         const replyRaw = data.reply || data.summary || "Selesai.";
@@ -115,17 +163,24 @@ export function AnalysisProvider({ children }) {
 
         return data;
       } catch (e) {
+        // A cancel is a deliberate act, not a failure: no error bubble, no
+        // toast. The user's own turn stays so they can edit or retry from it.
+        if (e instanceof CancelledError) {
+          toast.info("Analisis dibatalkan.");
+          throw e;
+        }
         if (!regenerateMessageId) {
           s.addMessage({ role: "assistant", mode, error: true, content: `Waduh, gagal: ${e.message}` });
         }
         if (!(e instanceof NotConfiguredError)) toast.error(e.message || "Analisis gagal.");
         throw e;
       } finally {
+        abortRef.current = null;
         setBusy(false);
         setBusyMode(null);
       }
     },
-    [s, conn]
+    [s, conn, maskQuestion]
   );
 
   const run = useCallback(
@@ -172,7 +227,7 @@ export function AnalysisProvider({ children }) {
   return (
     <Ctx.Provider
       value={{
-        run, runPending, cancelPending, busy, busyMode, ensureMasked,
+        run, runPending, cancelPending, cancel, busy, busyMode, ensureMasked,
         restoredQuestion, consumeRestoredQuestion,
       }}
     >

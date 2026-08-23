@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Paperclip, ArrowUp, X, Loader2, ShieldAlert, FileText, Sparkles, FileCheck2 } from "lucide-react";
+import { Paperclip, ArrowUp, X, Loader2, ShieldAlert, FileText, Sparkles, FileCheck2, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
@@ -34,7 +34,8 @@ const BUSINESS_PROMPTS = [
 
 export default function ChatComposer({ variant = "docked", seed, onOpenAuth, autoFocus = false }) {
   const s = useSession();
-  const { run, busy: analyzing, restoredQuestion, consumeRestoredQuestion } = useAnalysis();
+  // `cancel` below is the PDF-extraction cancel; this one stops the LLM run.
+  const { run, cancel: cancelAnalysis, busy: analyzing, restoredQuestion, consumeRestoredQuestion } = useAnalysis();
   const { user } = useAuth();
   const { uploadFile, progress, busy: extracting, cancel } = useDocumentUpload();
   const { audienceMode } = useUI();
@@ -258,17 +259,35 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
             )}
           </div>
 
-          <Button
-            type="button"
-            data-testid="chat-send-button"
-            onClick={send}
-            disabled={!mounted || Boolean(disabled || !input.trim())}
-            size="icon"
-            className="h-10 w-10 shrink-0 rounded-full"
-            suppressHydrationWarning
-          >
-            {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
-          </Button>
+          {/* While a run is in flight this is a STOP button, not a disabled
+              send — an agentic run with tool calls can block for up to a
+              minute and there was previously no way out of it. */}
+          {analyzing ? (
+            <Button
+              type="button"
+              data-testid="chat-stop-button"
+              onClick={cancelAnalysis}
+              size="icon"
+              variant="secondary"
+              className="h-10 w-10 shrink-0 rounded-full"
+              title="Hentikan analisis"
+              aria-label="Hentikan analisis"
+            >
+              <Square className="h-3.5 w-3.5 fill-current" />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              data-testid="chat-send-button"
+              onClick={send}
+              disabled={!mounted || Boolean(disabled || !input.trim())}
+              size="icon"
+              className="h-10 w-10 shrink-0 rounded-full"
+              suppressHydrationWarning
+            >
+              <ArrowUp className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
 
