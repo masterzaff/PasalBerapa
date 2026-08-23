@@ -32,6 +32,8 @@ export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShe
     setMounted(true);
   }, []);
 
+  const [restoring, setRestoring] = useState(false);
+
   const started = hasDocument || messages.length > 0;
   const isChat = Boolean(isNewChat || urlId || (pathname !== "/" && mounted && (started || restoring)));
   const openAuth = () => setShowAuth(true);
@@ -47,12 +49,17 @@ export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShe
     }
   }, [mounted, started, sessionId, pathname, router]);
 
-  // 2) If we land on /chat/:id with nothing in memory, try to restore from DB
-  const triedRef = useRef(false);
-  const [restoring, setRestoring] = useState(false);
+  // 2) If /chat/:id doesn't match what's in memory, restore that conversation
+  //    from the DB. Keyed on the URL id (not a one-shot ref) so navigating
+  //    between two saved conversations restores each one — and comparing
+  //    against sessionId rather than `started` means a deep link no longer
+  //    silently shows whatever stale session sessionStorage happened to hold.
+  const triedRef = useRef(null);
   useEffect(() => {
-    if (!urlId || urlId === "new" || isNewChat || started || authLoading || triedRef.current) return;
-    triedRef.current = true;
+    if (!mounted || !urlId || urlId === "new" || isNewChat || authLoading) return;
+    if (!sessionId) return; // session state not hydrated yet
+    if (sessionId === urlId || triedRef.current === urlId) return;
+    triedRef.current = urlId;
     if (!token) {
       router.replace("/");
       return;
@@ -60,10 +67,10 @@ export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShe
     setRestoring(true);
     authApi
       .getConversation(urlId, token)
-      .then((d) => loadConversation({ id: urlId, messages: d.messages || [], docName: d.doc_name, piiMapping: d.pii_mapping }))
+      .then((d) => loadConversation({ id: urlId, messages: d.messages || [], docName: d.doc_name, title: d.title, piiMapping: d.pii_mapping }))
       .catch(() => router.replace("/"))
       .finally(() => setRestoring(false));
-  }, [urlId, started, token, authLoading, router, loadConversation]);
+  }, [mounted, urlId, isNewChat, sessionId, token, authLoading, router, loadConversation]);
 
   const goHome = () => {
     router.push("/");

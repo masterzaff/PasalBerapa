@@ -1,10 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { authApi } from "@/lib/authApi";
+import { useSession } from "@/context/SessionContext";
 
 const LS_TOKEN = "pasalberapa.token";
 const Ctx = createContext(null);
 
 export function AuthProvider({ children }) {
+  const { resetSession } = useSession();
   const [token, setToken] = useState(() => {
     if (typeof window !== "undefined") {
       try {
@@ -60,11 +62,15 @@ export function AuthProvider({ children }) {
     return d.user;
   }, [persist]);
 
+  // Logging out must also drop the in-memory/sessionStorage conversation: it
+  // belongs to the account that just left (visible to whoever logs in next),
+  // and its convId would otherwise be autosaved against the new account.
   const logout = useCallback(() => {
-    localStorage.removeItem(LS_TOKEN);
+    try { localStorage.removeItem(LS_TOKEN); } catch (_) {}
     setToken(null);
     setUser(null);
-  }, []);
+    resetSession();
+  }, [resetSession]);
 
   return (
     <Ctx.Provider value={{ token, user, loading, login, register, logout }}>

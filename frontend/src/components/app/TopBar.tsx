@@ -19,10 +19,10 @@ export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome }) {
   const isNewChatPage = pathname === "/chat/new";
   const showNewChatButton = isSessionActive || (isChatPage && !isNewChatPage);
 
-  const goHome = () => {
-    resetSession();
-    router.push("/");
-  };
+  // The logo is navigation, not a reset — wiping an in-progress conversation
+  // just because someone clicked the wordmark is silent data loss. Use "Chat
+  // baru" to actually start over.
+  const goHome = onGoHome || (() => router.push("/"));
 
   const startNewChat = () => {
     resetSession();

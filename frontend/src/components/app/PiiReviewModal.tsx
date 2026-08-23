@@ -26,7 +26,15 @@ interface PiiReviewModalProps {
 
 export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalProps) {
   const s = useSession();
-  const { runPending } = useAnalysis();
+  const { runPending, cancelPending } = useAnalysis();
+
+  // Closing without approving/skipping abandons the queued analysis. Route every
+  // dismissal (Batal, Esc, overlay click) through cancelPending so the pending
+  // action is dropped and the typed question is handed back to the composer.
+  const dismiss = () => {
+    cancelPending();
+    onOpenChange(false);
+  };
 
   // Local state for interactive editing before approving
   const [mapping, setMapping] = useState<Record<string, string>>({});
@@ -67,8 +75,11 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
       return;
     }
 
-    const nextIndex = entries.length + 1;
+    // Index must be the next FREE one for this type — entries.length collides
+    // with an existing tag as soon as anything has been removed from the list.
     const cleanType = (customType || "CUSTOM").toUpperCase();
+    let nextIndex = 1;
+    while (Object.prototype.hasOwnProperty.call(mapping, `<${cleanType}_${nextIndex}>`)) nextIndex += 1;
     const newTag = `<${cleanType}_${nextIndex}>`;
 
     setMapping((prev) => ({
@@ -104,7 +115,7 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : dismiss())}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
         {/* Header */}
         <DialogHeader className="p-5 border-b bg-muted/40 shrink-0">
@@ -243,7 +254,7 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => onOpenChange(false)}
+              onClick={dismiss}
               className="text-xs"
             >
               Batal

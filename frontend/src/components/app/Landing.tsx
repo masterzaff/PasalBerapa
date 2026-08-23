@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield, ScanText, TriangleAlert, UploadCloud, Loader2,
@@ -10,6 +11,7 @@ import { toast } from "sonner";
 import ChatComposer from "@/components/app/ChatComposer";
 import { useDocumentUpload } from "@/hooks/useDocumentUpload";
 import { useUI } from "@/context/UIContext";
+import { useSession } from "@/context/SessionContext";
 
 // --- GLITCHING REDACT CHIP COMPONENT ---
 function GlitchingTagChip({ original, redacted, delay = 0, cls = "" }) {
@@ -417,9 +419,23 @@ const EXAMPLES = [
 export default function Landing({ onOpenAuth }) {
   const { uploadFile, busy, progress } = useDocumentUpload();
   const { audienceMode } = useUI();
+  const { sessionId } = useSession();
+  const router = useRouter();
   const [dragging, setDragging] = useState(false);
   const [seed, setSeed] = useState(null);
   const depth = useRef(0);
+
+  // A successful upload has to take you into the chat. Dropping a PDF (or
+  // clicking a sample) used to load it silently and leave you on the landing
+  // page, with the only hint being a chip in the composer.
+  const ingest = useCallback(
+    async (f) => {
+      const ok = await uploadFile(f);
+      if (ok) router.push(`/chat/${sessionId}`);
+      return ok;
+    },
+    [uploadFile, router, sessionId]
+  );
 
   const isBisnis = audienceMode === "bisnis";
   const activeQuestions = isBisnis ? BUSINESS_QUESTIONS : PERSONAL_QUESTIONS;
@@ -433,7 +449,7 @@ export default function Landing({ onOpenAuth }) {
     const onDrop = async (e) => {
       e.preventDefault(); depth.current = 0; setDragging(false);
       const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      if (f) await uploadFile(f);
+      if (f) await ingest(f);
     };
     window.addEventListener("dragover", onOver);
     window.addEventListener("dragenter", onEnter);
@@ -445,7 +461,7 @@ export default function Landing({ onOpenAuth }) {
       window.removeEventListener("dragleave", onLeave);
       window.removeEventListener("drop", onDrop);
     };
-  }, [uploadFile]);
+  }, [ingest]);
 
   const loadSample = async (file) => {
     if (busy) return;
@@ -453,7 +469,7 @@ export default function Landing({ onOpenAuth }) {
       const res = await fetch(`${process.env.PUBLIC_URL || ""}/samples/${file}`);
       if (!res.ok) throw new Error("not found");
       const blob = await res.blob();
-      await uploadFile(new File([blob], file, { type: "application/pdf" }));
+      await ingest(new File([blob], file, { type: "application/pdf" }));
     } catch (e) {
       toast.error("Gagal memuat contoh.");
     }

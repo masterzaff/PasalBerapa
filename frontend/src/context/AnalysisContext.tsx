@@ -20,6 +20,9 @@ export function AnalysisProvider({ children }) {
   const [busy, setBusy] = useState(false);
   const [busyMode, setBusyMode] = useState(null);
   const pendingActionRef = useRef(null);
+  // Set when a queued analysis is abandoned (PII review dismissed) so the
+  // composer can hand the user their typed question back instead of losing it.
+  const [restoredQuestion, setRestoredQuestion] = useState(null);
 
   const ensureMasked = useCallback(async () => {
     if (s.maskedText && s.piiMapping && Object.keys(s.piiMapping).length > 0) {
@@ -155,8 +158,24 @@ export function AnalysisProvider({ children }) {
     }
   }, [executeAnalysis]);
 
+  // PII review dismissed without a decision: drop the queued analysis, but give
+  // a free-text question back to the composer so nothing the user typed is lost.
+  const cancelPending = useCallback(() => {
+    const pending = pendingActionRef.current;
+    pendingActionRef.current = null;
+    if (pending?.question) setRestoredQuestion({ text: pending.question, id: Date.now() });
+    if (pending) toast.info("Analisis dibatalkan.");
+  }, []);
+
+  const consumeRestoredQuestion = useCallback(() => setRestoredQuestion(null), []);
+
   return (
-    <Ctx.Provider value={{ run, runPending, busy, busyMode, ensureMasked }}>
+    <Ctx.Provider
+      value={{
+        run, runPending, cancelPending, busy, busyMode, ensureMasked,
+        restoredQuestion, consumeRestoredQuestion,
+      }}
+    >
       {children}
     </Ctx.Provider>
   );

@@ -45,8 +45,13 @@ export function Message({ m }) {
   const s = useSession();
   const { run, busy: analyzing } = useAnalysis();
 
+  // Nearest preceding USER turn — messages[i-1] is not necessarily one (an
+  // errored reply, or a mode reply, can sit directly above this message).
   const msgIndex = s.messages.findIndex((msg) => msg.id === m.id);
-  const prevUserMsg = msgIndex > 0 ? s.messages[msgIndex - 1] : null;
+  const prevUserMsg =
+    msgIndex > 0
+      ? [...s.messages.slice(0, msgIndex)].reverse().find((msg) => msg.role === "user") || null
+      : null;
 
   const handleRegenerate = async () => {
     if (!prevUserMsg || regenerating || analyzing) return;
@@ -175,9 +180,11 @@ export function Message({ m }) {
           )}
         </div>
 
-        {/* Action buttons (Copy, Debug) */}
+        {/* Action buttons (Copy, Debug, Regenerate). Always visible on
+            touch/narrow screens — hover-only controls are unreachable there —
+            and focus-within keeps them usable from the keyboard. */}
         {!m.error && (
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-1 opacity-100 transition-opacity focus-within:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
             <button
               type="button"
               onClick={handleCopy}

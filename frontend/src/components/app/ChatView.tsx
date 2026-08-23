@@ -9,6 +9,10 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import ChatComposer from "@/components/app/ChatComposer";
 import { Message, TypingBubble } from "@/components/app/ChatMessage";
@@ -42,11 +46,23 @@ export default function ChatView({ onOpenAuth }) {
   const feedRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const { convId, setConvId, convTitle, setConvTitle } = s;
   const savingRef = useRef(false);
 
+  // Stick to the bottom only when the user is already there. Scrolling back up
+  // to re-read an earlier answer used to get yanked to the bottom by the next
+  // render (including every typing-indicator toggle).
+  const stickToBottomRef = useRef(true);
+  const onFeedScroll = useCallback(() => {
+    const el = feedRef.current;
+    if (!el) return;
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  }, []);
+
   useEffect(() => {
-    if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
+    const el = feedRef.current;
+    if (el && stickToBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [s.messages, analyzing]);
 
   const firstUserMsg = s.messages.find((m) => m.role === "user");
@@ -93,8 +109,11 @@ export default function ChatView({ onOpenAuth }) {
   );
 
   // Autosave: simpan otomatis tiap ada pesan baru (kalau sudah login).
+  // New messages invalidate "Tersimpan" immediately, otherwise the indicator
+  // keeps claiming saved state for content that hasn't been written yet.
   useEffect(() => {
     if (!user || analyzing || s.messages.length === 0) return;
+    setSaved(false);
     const t = setTimeout(() => { persist(); }, 1000);
     return () => clearTimeout(t);
   }, [s.messages, analyzing, user, persist]);
@@ -111,7 +130,7 @@ export default function ChatView({ onOpenAuth }) {
   };
 
   const remove = async () => {
-    if (!user) { onOpenAuth(); return; }
+    setConfirmDelete(false);
     try {
       if (convId) await authApi.deleteConversation(convId, token);
       toast.success("Percakapan dihapus.");
@@ -169,7 +188,11 @@ export default function ChatView({ onOpenAuth }) {
                     <Pencil className="mr-2 h-4 w-4" /> Ganti judul
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={remove} data-testid="menu-delete" className="text-destructive focus:text-destructive">
+                  <DropdownMenuItem
+                    onClick={() => (user ? setConfirmDelete(true) : onOpenAuth())}
+                    data-testid="menu-delete"
+                    className="text-destructive focus:text-destructive"
+                  >
                     <Trash2 className="mr-2 h-4 w-4" /> Hapus
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -209,7 +232,7 @@ export default function ChatView({ onOpenAuth }) {
         </div>
       ) : (
         <>
-          <div ref={feedRef} className="scroll-slim min-h-0 flex-1 overflow-y-auto">
+          <div ref={feedRef} onScroll={onFeedScroll} className="scroll-slim min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto max-w-3xl space-y-6 px-4 py-6">
               {s.hasDocument && s.messages.length === 0 && !analyzing && (
                 <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex gap-2.5">
@@ -251,6 +274,27 @@ export default function ChatView({ onOpenAuth }) {
           </div>
         </>
       )}
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus percakapan ini?</AlertDialogTitle>
+            <AlertDialogDescription>
+              “{headerTitle}” bakal dihapus permanen, termasuk semua pesannya. Nggak bisa dibalikin.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={remove}
+              data-testid="confirm-delete-conversation"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Sheet open={ui.panelOpen} onOpenChange={ui.setPanelOpen}>
         <SheetContent side="right" className="flex w-full flex-col p-0 sm:max-w-xl md:max-w-2xl">

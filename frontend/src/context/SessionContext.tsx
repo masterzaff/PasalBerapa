@@ -64,6 +64,7 @@ export function SessionProvider({ children }) {
       if (snap.maskedText) setMaskedText(snap.maskedText);
       if (snap.piiMapping) setPiiMapping(snap.piiMapping);
       if (snap.piiEntities) setPiiEntities(snap.piiEntities);
+      if (snap.piiConfirmed) setPiiConfirmed(true);
       if (snap.messages) setMessages(snap.messages);
       if (snap.risks) setRisks(snap.risks);
       if (snap.riskScore !== undefined) setRiskScore(snap.riskScore);
@@ -91,6 +92,7 @@ export function SessionProvider({ children }) {
           maskedText,
           piiMapping,
           piiEntities,
+          piiConfirmed,
           messages,
           risks,
           riskScore,
@@ -108,50 +110,52 @@ export function SessionProvider({ children }) {
     } catch (_) {}
   }, [
     sessionId, file, rawText, extractInfo, maskedText, piiMapping, piiEntities,
-    messages, risks, riskScore, citations, convId, convTitle,
+    piiConfirmed, messages, risks, riskScore, citations, convId, convTitle,
   ]);
 
-  const resetSession = useCallback(() => {
-    try { sessionStorage.removeItem(SS_KEY); } catch (_) {}
-    persistRef.current = false;
-    setSessionId(newSessionId());
+  // Everything derived from the currently attached document. Swapping or
+  // removing a document MUST clear all of it — otherwise the masked text,
+  // mapping and "PII already reviewed" flag of the *previous* document leak
+  // into the next analysis (wrong document sent to the LLM, review skipped).
+  const resetDocument = useCallback(() => {
     setFile(null);
     setRawText("");
     setExtractInfo(null);
     setMaskedText("");
     setPiiMapping({});
     setPiiEntities([]);
-    setMessages([]);
+    setPiiConfirmed(false);
+    setShowPiiModal(false);
     setRisks([]);
     setRiskScore(null);
     setCitations([]);
+    setHighlightExcerpt(null);
+  }, []);
+
+  const resetSession = useCallback(() => {
+    try { sessionStorage.removeItem(SS_KEY); } catch (_) {}
+    persistRef.current = false;
+    setSessionId(newSessionId());
+    resetDocument();
+    setMessages([]);
     setConvId(null);
     setConvTitle(null);
-    setHighlightExcerpt(null);
-    setPiiConfirmed(false);
-    setShowPiiModal(false);
-  }, []);
+  }, [resetDocument]);
 
   // Load a saved conversation (from history/DB) into the active session.
   // Keeps the given id so the URL /chat/:id stays stable across refresh.
   const loadConversation = useCallback(({ id, messages: msgs, docName, title, piiMapping } = {}) => {
     setSessionId(id || newSessionId());
+    resetDocument();
+    // The raw document text is never persisted, so a restored conversation has
+    // no document — but its PII mapping is, and must come back so replies stay
+    // readable and re-sent history stays masked.
     setFile(docName ? { name: docName } : null);
-    setRawText("");
-    setExtractInfo(null);
-    setMaskedText("");
     setPiiMapping(piiMapping && typeof piiMapping === "object" ? piiMapping : {});
-    setPiiEntities([]);
-    setPiiConfirmed(false);
-    setShowPiiModal(false);
     setMessages(Array.isArray(msgs) ? msgs : []);
-    setRisks([]);
-    setRiskScore(null);
-    setCitations([]);
     setConvId(id || null);
     setConvTitle(title || null);
-    setHighlightExcerpt(null);
-  }, []);
+  }, [resetDocument]);
 
   const addMessage = useCallback((msg) => {
     setMessages((prev) => [
@@ -161,7 +165,6 @@ export function SessionProvider({ children }) {
   }, []);
 
   const hasDocument = Boolean(rawText && rawText.trim());
-  const isMasked = Boolean(maskedText && Object.keys(piiMapping).length >= 0 && maskedText.trim());
 
   const value = useMemo(
     () => ({
@@ -182,15 +185,15 @@ export function SessionProvider({ children }) {
       convTitle, setConvTitle,
       highlightExcerpt, setHighlightExcerpt,
       resetSession,
+      resetDocument,
       loadConversation,
       hasDocument,
-      isMasked,
     }),
     [
       sessionId, file, rawText, extractInfo, maskedText, piiMapping, piiEntities,
       piiConfirmed, showPiiModal,
       messages, risks, riskScore, citations, convId, convTitle, highlightExcerpt, addMessage,
-      resetSession, loadConversation, hasDocument, isMasked,
+      resetSession, resetDocument, loadConversation, hasDocument,
     ]
   );
 

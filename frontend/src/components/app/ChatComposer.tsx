@@ -34,7 +34,7 @@ const BUSINESS_PROMPTS = [
 
 export default function ChatComposer({ variant = "docked", seed, onOpenAuth, autoFocus = false }) {
   const s = useSession();
-  const { run, busy: analyzing } = useAnalysis();
+  const { run, busy: analyzing, restoredQuestion, consumeRestoredQuestion } = useAnalysis();
   const { user } = useAuth();
   const { uploadFile, progress, busy: extracting, cancel } = useDocumentUpload();
   const { audienceMode } = useUI();
@@ -71,7 +71,9 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
     );
     return () => clearInterval(id);
   }, [input, activePrompts.length]);
-  const placeholder = phIdx < 0 ? BASE_PH : activePrompts[phIdx];
+  // Clamp: the two prompt lists differ in length, so a stale index can point
+  // past the end after an audience switch and blank the placeholder entirely.
+  const placeholder = phIdx < 0 ? BASE_PH : activePrompts[phIdx] || BASE_PH;
 
   useEffect(() => {
     const ta = taRef.current;
@@ -99,6 +101,16 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed && seed.id]);
 
+  // A question that was queued behind the PII review and then abandoned comes
+  // back here instead of vanishing. Only the composer actually on screen takes
+  // it — hero and docked are never mounted at the same time.
+  useEffect(() => {
+    if (!restoredQuestion) return;
+    setInput((cur) => (cur.trim() ? cur : restoredQuestion.text));
+    consumeRestoredQuestion();
+    if (taRef.current) taRef.current.focus();
+  }, [restoredQuestion, consumeRestoredQuestion]);
+
   const pickFile = () => fileRef.current && fileRef.current.click();
   const onFile = async (e) => {
     const f = e.target.files && e.target.files[0];
@@ -113,15 +125,7 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
 
   const removeFile = (e) => {
     e?.stopPropagation?.();
-    s.setFile(null);
-    s.setRawText("");
-    s.setExtractInfo(null);
-    s.setMaskedText("");
-    s.setPiiMapping({});
-    s.setPiiEntities([]);
-    s.setRisks([]);
-    s.setRiskScore(null);
-    s.setCitations([]);
+    s.resetDocument();
     toast.info("Lampiran dokumen dibatalkan.");
   };
 

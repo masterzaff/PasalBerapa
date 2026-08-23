@@ -6,7 +6,7 @@ import { useSession } from "@/context/SessionContext";
 // Handles PDF -> text/OCR extraction into session state, with progress + cancel.
 // AUTO mode: reads embedded text first, falls back to OCR (Indonesian) per scanned page.
 export function useDocumentUpload() {
-  const { setFile, setRawText, setExtractInfo } = useSession();
+  const { setFile, setRawText, setExtractInfo, resetDocument } = useSession();
   const [progress, setProgress] = useState(null); // {percent, message}
   const abortRef = useRef(null);
   const busy = Boolean(progress);
@@ -22,6 +22,10 @@ export function useDocumentUpload() {
         toast.error("File harus PDF ya.");
         return false;
       }
+      // Drop everything derived from the previous document first. Without this,
+      // the old maskedText/piiMapping survive and the next analysis sends the
+      // PREVIOUS document to the LLM with the PII review already marked done.
+      resetDocument();
       const controller = new AbortController();
       abortRef.current = controller;
       setProgress({ percent: 2, message: "Membuka PDF…" });
@@ -54,7 +58,7 @@ export function useDocumentUpload() {
         abortRef.current = null;
       }
     },
-    [setFile, setRawText, setExtractInfo]
+    [setFile, setRawText, setExtractInfo, resetDocument]
   );
 
   return { uploadFile, progress, busy, cancel };
