@@ -48,7 +48,8 @@ export function Message({ m }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(m.content || "");
   const s = useSession();
-  const { run, editUserMessage, busy: analyzing } = useAnalysis();
+  const { run, editUserMessage, busy: analyzing, busyMessageId } = useAnalysis();
+  const isThisMessageBusy = m.role === "assistant" && busyMessageId === m.id;
 
   // Nearest preceding USER turn — messages[i-1] is not necessarily one (an
   // errored reply, or a mode reply, can sit directly above this message).
@@ -210,70 +211,78 @@ export function Message({ m }) {
               : "border bg-card/60 backdrop-blur text-foreground shadow-xs"
           }`}
         >
-          <div className="select-text text-sm leading-6">
-            <ReactMarkdown components={MARKDOWN_COMPONENTS}>{m.content}</ReactMarkdown>
-          </div>
+          {isThisMessageBusy ? (
+            <div className="py-0.5">
+              <TypingBubble />
+            </div>
+          ) : (
+            <>
+              <div className="select-text text-sm leading-6">
+                <ReactMarkdown components={MARKDOWN_COMPONENTS}>{m.content}</ReactMarkdown>
+              </div>
 
-          {/* Citations / Legal references */}
-          {Array.isArray(m.citations) && m.citations.length > 0 && (
-            <div className="mt-3 pt-3 border-t">
-              <button
-                type="button"
-                onClick={() => setCitationsOpen((o) => !o)}
-                className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <BookMarked className="h-3.5 w-3.5 text-primary" />
-                <span>{m.citations.length} rujukan pasal &amp; regulasi</span>
-                <ChevronDown className={`h-3 w-3 transition-transform ${citationsOpen ? "rotate-180" : ""}`} />
-              </button>
-              {citationsOpen && (
-                <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
-                  {m.citations.map((c, i) => (
-                    <a
-                      key={i}
-                      href={c.url || undefined}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex flex-col rounded-lg border bg-background/80 p-2 text-left text-xs transition-colors hover:border-primary hover:bg-accent/40"
-                    >
-                      <span className="font-semibold text-primary">
-                        {c.regulation} {c.article}
-                      </span>
-                      {c.snippet && (
-                        <span className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
-                          {c.snippet}
-                        </span>
-                      )}
-                    </a>
-                  ))}
+              {/* Citations / Legal references */}
+              {Array.isArray(m.citations) && m.citations.length > 0 && (
+                <div className="mt-3 pt-3 border-t">
+                  <button
+                    type="button"
+                    onClick={() => setCitationsOpen((o) => !o)}
+                    className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <BookMarked className="h-3.5 w-3.5 text-primary" />
+                    <span>{m.citations.length} rujukan pasal &amp; regulasi</span>
+                    <ChevronDown className={`h-3 w-3 transition-transform ${citationsOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {citationsOpen && (
+                    <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                      {m.citations.map((c, i) => (
+                        <a
+                          key={i}
+                          href={c.url || undefined}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex flex-col rounded-lg border bg-background/80 p-2 text-left text-xs transition-colors hover:border-primary hover:bg-accent/40"
+                        >
+                          <span className="font-semibold text-primary">
+                            {c.regulation} {c.article}
+                          </span>
+                          {c.snippet && (
+                            <span className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+                              {c.snippet}
+                            </span>
+                          )}
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
-            </div>
-          )}
 
-          {/* Actions breakdown (tools the agent called this request) */}
-          {Array.isArray(m.actions) && m.actions.length > 0 && (
-            <div className="mt-3 pt-3 border-t">
-              <button
-                type="button"
-                onClick={() => setActionsOpen((o) => !o)}
-                className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Wrench className="h-3.5 w-3.5 text-primary" />
-                <span>{m.actions.length} aksi dilakukan</span>
-                <ChevronDown className={`h-3 w-3 transition-transform ${actionsOpen ? "rotate-180" : ""}`} />
-              </button>
-              {actionsOpen && (
-                <ol className="mt-2 space-y-1 pl-0.5">
-                  {m.actions.map((a, i) => (
-                    <li key={i} className="text-[11px] text-muted-foreground flex gap-1.5">
-                      <span className="text-primary font-medium shrink-0">{i + 1}.</span>
-                      <span>{a.label}</span>
-                    </li>
-                  ))}
-                </ol>
+              {/* Actions breakdown (tools the agent called this request) */}
+              {Array.isArray(m.actions) && m.actions.length > 0 && (
+                <div className="mt-3 pt-3 border-t">
+                  <button
+                    type="button"
+                    onClick={() => setActionsOpen((o) => !o)}
+                    className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Wrench className="h-3.5 w-3.5 text-primary" />
+                    <span>{m.actions.length} aksi dilakukan</span>
+                    <ChevronDown className={`h-3 w-3 transition-transform ${actionsOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {actionsOpen && (
+                    <ol className="mt-2 space-y-1 pl-0.5">
+                      {m.actions.map((a, i) => (
+                        <li key={i} className="text-[11px] text-muted-foreground flex gap-1.5">
+                          <span className="text-primary font-medium shrink-0">{i + 1}.</span>
+                          <span>{a.label}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
               )}
-            </div>
+            </>
           )}
         </div>
 
@@ -282,43 +291,44 @@ export function Message({ m }) {
             and focus-within keeps them usable from the keyboard.
             An errored reply keeps Regenerate: it is the one message where
             retrying matters most, and it used to be the one that hid it. */}
-        <div
-          className={`flex items-center gap-1 transition-opacity focus-within:opacity-100 ${
-            m.error ? "opacity-100" : "opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-          }`}
-        >
-          {!m.error && (
-            <>
-              <button
-                type="button"
-                onClick={handleCopy}
-                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors"
-                title="Salin jawaban"
-              >
-                {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
-                <span>{copied ? "Tersalin" : "Salin"}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setOriginalOpen(true)}
-                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors"
-                title="Lihat pesan asli yang dikirim/diterima"
-              >
-                <Eye className="h-3 w-3" />
-                <span>Pesan Asli</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setDebugOpen(true)}
-                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors"
-                title="Lihat request ke LLM"
-              >
-                <Bug className="h-3 w-3" />
-                <span>Debug</span>
-              </button>
-            </>
-          )}
-          {prevUserMsg && (
+        {!isThisMessageBusy && (
+          <div
+            className={`flex items-center gap-1 transition-opacity focus-within:opacity-100 ${
+              m.error ? "opacity-100" : "opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+            }`}
+          >
+            {!m.error && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors"
+                  title="Salin jawaban"
+                >
+                  {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                  <span>{copied ? "Tersalin" : "Salin"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOriginalOpen(true)}
+                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors"
+                  title="Lihat pesan asli yang dikirim/diterima"
+                >
+                  <Eye className="h-3 w-3" />
+                  <span>Pesan Asli</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDebugOpen(true)}
+                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors"
+                  title="Lihat request ke LLM"
+                >
+                  <Bug className="h-3 w-3" />
+                  <span>Debug</span>
+                </button>
+              </>
+            )}
+            {prevUserMsg && (
               <button
                 type="button"
                 onClick={handleRegenerate}
@@ -330,7 +340,8 @@ export function Message({ m }) {
                 <span>{m.error ? "Coba lagi" : "Regenerate"}</span>
               </button>
             )}
-        </div>
+          </div>
+        )}
       </div>
 
       <DebugRequestModal open={debugOpen} onOpenChange={setDebugOpen} messages={m.debugMessages || []} />

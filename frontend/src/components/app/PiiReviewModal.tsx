@@ -54,6 +54,10 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
   const previewRef = useRef<HTMLDivElement>(null);
   const previewWrapperRef = useRef<HTMLDivElement>(null);
 
+  // Preference: Don't show review dialog again (auto-confirm in future)
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [confirmSkipDialogOpen, setConfirmSkipDialogOpen] = useState(false);
+
   // Synchronize with session state when modal opens
   useEffect(() => {
     if (open) {
@@ -62,8 +66,32 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
       setGroupSelection([]);
       setSelectionPopupPos(null);
       setSelectedText("");
+      if (typeof window !== "undefined") {
+        setDontShowAgain(localStorage.getItem("pasalberapa_auto_confirm_pii") === "true");
+      }
     }
   }, [open, s.piiMapping]);
+
+  const handleCheckboxChange = (checked: boolean) => {
+    if (checked) {
+      setConfirmSkipDialogOpen(true);
+    } else {
+      setDontShowAgain(false);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("pasalberapa_auto_confirm_pii");
+      }
+      toast.info("Peninjauan PII manual diaktifkan kembali.");
+    }
+  };
+
+  const handleAcceptAutoConfirm = () => {
+    setDontShowAgain(true);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("pasalberapa_auto_confirm_pii", "true");
+    }
+    setConfirmSkipDialogOpen(false);
+    toast.success("Opsi disimpan: PII akan disamarkan otomatis untuk dokumen berikutnya.");
+  };
 
   // Clear selection popup when active tab changes
   useEffect(() => {
@@ -337,35 +365,42 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : dismiss())}>
-      <DialogContent className="max-w-2xl w-full h-[85vh] max-h-[620px] flex flex-col p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-2xl w-full h-[92vh] sm:h-[85vh] max-h-[640px] flex flex-col p-0 gap-0 overflow-hidden">
         {/* Header */}
-        <DialogHeader className="px-5 py-4 border-b bg-muted/40 shrink-0">
-          <div className="flex items-center gap-2 text-primary font-semibold text-xs tracking-wider uppercase">
-            <Shield className="h-4 w-4 text-emerald-600" />
+        <DialogHeader className="px-4 py-3 sm:px-5 sm:py-4 border-b bg-muted/40 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 text-primary font-semibold text-[11px] sm:text-xs tracking-wider uppercase">
+            <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600" />
             <span>Human-In-The-Loop Privacy Layer</span>
           </div>
-          <DialogTitle className="font-display text-lg font-semibold flex items-center justify-between gap-2 mt-1">
+          <DialogTitle className="font-display text-base sm:text-lg font-semibold flex items-center justify-between gap-2 mt-0.5 sm:mt-1">
             <span>Tinjau Penyamaran Data Pribadi</span>
-            <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
+            <Badge variant="outline" className="text-[10px] sm:text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/30 px-2 py-0.5 whitespace-nowrap">
               {entries.length} Item Terdeteksi
             </Badge>
           </DialogTitle>
-          <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-            Data di bawah ini akan disamarkan menjadi token anonim sebelum dikirim ke AI. Anda dapat menambah atau menghapus kata sensor sesuai kebutuhan.
+          <DialogDescription className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 leading-snug sm:leading-relaxed">
+            <span className="sm:hidden">
+              Data disamarkan ke token anonim sebelum dikirim ke AI. Hindari sensor berlebih agar analisis tetap akurat.
+            </span>
+            <span className="hidden sm:inline">
+              Data di bawah ini akan disamarkan menjadi token anonim sebelum dikirim ke AI. Anda dapat menambah atau menghapus kata sensor sesuai kebutuhan — namun menyensor konteks secara berlebihan dapat memengaruhi ketepatan analisis AI.
+            </span>
           </DialogDescription>
         </DialogHeader>
 
         {/* Tab Selector */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-          <div className="px-5 py-2.5 border-b bg-muted/20 shrink-0">
+          <div className="px-4 py-2 sm:px-5 sm:py-2.5 border-b bg-muted/20 shrink-0">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="list" className="gap-2 text-xs">
+              <TabsTrigger value="list" className="gap-1.5 sm:gap-2 text-xs">
                 <Lock className="h-3.5 w-3.5" />
-                Daftar Sensor ({entries.length})
+                <span className="sm:hidden">Daftar ({entries.length})</span>
+                <span className="hidden sm:inline">Daftar Sensor ({entries.length})</span>
               </TabsTrigger>
-              <TabsTrigger value="preview" className="gap-2 text-xs">
+              <TabsTrigger value="preview" className="gap-1.5 sm:gap-2 text-xs">
                 <Eye className="h-3.5 w-3.5" />
-                Pratinjau Teks Bersensor
+                <span className="sm:hidden">Pratinjau Teks</span>
+                <span className="hidden sm:inline">Pratinjau Teks Bersensor</span>
               </TabsTrigger>
             </TabsList>
           </div>
@@ -373,31 +408,31 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
           {/* TAB 1: List & Add Sensor */}
           <TabsContent
             value="list"
-            className="flex-1 min-h-0 data-[state=active]:flex data-[state=inactive]:hidden flex-col p-5 gap-3.5 m-0 overflow-hidden"
+            className="flex-1 min-h-0 data-[state=active]:flex data-[state=inactive]:hidden flex-col p-3.5 sm:p-5 gap-2.5 sm:gap-3.5 m-0 overflow-hidden"
           >
             {/* Top Toolbar: Form Tambah Manual by default, replaced by Bulk Merge/Hint bar when 1+ selected */}
             {groupSelection.length === 0 ? (
-              <form onSubmit={handleAddCustom} className="flex items-center gap-2 p-2 rounded-xl border bg-muted/30 shrink-0 animate-in fade-in duration-150">
+              <form onSubmit={handleAddCustom} className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-xl border bg-muted/30 shrink-0 animate-in fade-in duration-150">
                 <Input
-                  placeholder="Tambah kata/nama rahasia lain untuk disamarkan…"
+                  placeholder="Tambah kata/nama rahasia…"
                   value={customText}
                   onChange={(e) => setCustomText(e.target.value)}
-                  className="text-xs h-9 bg-background"
+                  className="text-xs h-8 sm:h-9 bg-background"
                 />
                 <select
                   value={customType}
                   onChange={(e) => setCustomType(e.target.value)}
-                  className="h-9 px-2.5 rounded-md border text-xs bg-background text-foreground shrink-0 focus-visible:ring-2"
+                  className="h-8 sm:h-9 px-2 sm:px-2.5 rounded-md border text-[11px] sm:text-xs bg-background text-foreground shrink-0 focus-visible:ring-2"
                 >
-                  <option value="PERSON">Nama (PERSON)</option>
+                  <option value="PERSON">Nama</option>
                   <option value="ORG">Perusahaan / PT</option>
                   <option value="MONEY">Nominal Uang</option>
                   <option value="ACCOUNT">No. Rekening</option>
                   <option value="CUSTOM">Data Kustom</option>
                 </select>
-                <Button type="submit" size="sm" className="h-9 gap-1 text-xs shrink-0" disabled={!customText.trim()}>
+                <Button type="submit" size="sm" className="h-8 sm:h-9 px-2.5 sm:px-3 gap-1 text-xs shrink-0" disabled={!customText.trim()}>
                   <Plus className="h-3.5 w-3.5" />
-                  Tambah
+                  <span className="hidden sm:inline">Tambah</span>
                 </Button>
               </form>
             ) : (
@@ -589,39 +624,88 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
           </TabsContent>
         </Tabs>
 
+        {/* Auto-confirm Checkbox */}
+        <div className="px-3.5 py-2 sm:px-5 sm:py-2 border-t bg-muted/15 flex items-center justify-between text-xs shrink-0">
+          <label className="flex items-center gap-2 cursor-pointer select-none text-muted-foreground hover:text-foreground transition-colors">
+            <input
+              type="checkbox"
+              checked={dontShowAgain}
+              onChange={(e) => handleCheckboxChange(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-muted-foreground/30 text-emerald-600 focus:ring-emerald-500 accent-emerald-600 cursor-pointer"
+            />
+            <span className="text-[11px] sm:text-xs">
+              Jangan tampilkan dialog peninjauan ini lagi (otomatis samarkan)
+            </span>
+          </label>
+        </div>
+
         {/* Footer */}
-        <DialogFooter className="px-5 py-3.5 border-t bg-muted/30 flex items-center justify-between gap-2 sm:justify-between shrink-0">
+        <div className="px-3 py-2 sm:px-5 sm:py-3 border-t bg-muted/30 flex flex-row items-center justify-between gap-1.5 sm:gap-2 shrink-0">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={handleSkip}
-            className="text-xs text-muted-foreground hover:text-foreground"
+            className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10 px-2 sm:px-3 h-8 sm:h-9 transition-colors font-medium"
           >
-            Lewati Penyamaran
+            <span className="sm:hidden">Lewati</span>
+            <span className="hidden sm:inline">Lewati Penyamaran</span>
           </Button>
-          <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleConfirm}
+            className="text-xs gap-1 sm:gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium h-8 sm:h-9 px-3 sm:px-4 shrink-0"
+          >
+            <Check className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="sm:hidden">Setujui &amp; Lanjut</span>
+            <span className="hidden sm:inline">Setujui &amp; Lanjutkan</span>
+          </Button>
+        </div>
+      </DialogContent>
+
+      {/* Confirmation Dialog for Auto-confirm */}
+      <Dialog open={confirmSkipDialogOpen} onOpenChange={setConfirmSkipDialogOpen}>
+        <DialogContent className="max-w-md w-[92vw] sm:w-full p-5 sm:p-6 space-y-3">
+          <DialogHeader className="space-y-2 text-left">
+            <div className="flex items-center gap-2 text-primary font-semibold text-xs tracking-wider uppercase">
+              <Shield className="h-4 w-4 text-emerald-600" />
+              <span>Konfirmasi Penyamaran Otomatis</span>
+            </div>
+            <DialogTitle className="font-display text-base sm:text-lg font-semibold leading-snug">
+              Lewati Peninjauan Manual di Masa Depan?
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground leading-relaxed space-y-2 pt-1 text-left">
+              <span>
+                Dengan mengaktifkan opsi ini, sistem akan otomatis menerapkan hasil deteksi sensor data pribadi (PII) kami dan langsung melanjutkan analisis pada setiap dokumen berikutnya.
+              </span>
+              <span className="block text-[11px] bg-muted/60 p-2.5 rounded-lg border text-foreground/80 mt-2">
+                ⚠️ <b>Catatan:</b> Model deteksi berbasis AI dapat memiliki keterbatasan. Anda tetap dapat memeriksa atau mengubah kata sensor kapan saja melalui tombol <b>Brankas Privasi</b> di dokumen.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center justify-end gap-2 pt-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={dismiss}
-              className="text-xs"
+              onClick={() => setConfirmSkipDialogOpen(false)}
+              className="text-xs h-8 sm:h-9"
             >
               Batal
             </Button>
             <Button
               type="button"
               size="sm"
-              onClick={handleConfirm}
-              className="text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+              onClick={handleAcceptAutoConfirm}
+              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium h-8 sm:h-9 px-3.5"
             >
-              <Check className="h-4 w-4" />
-              Setujui &amp; Lanjutkan Analisis
+              Saya Paham &amp; Setujui
             </Button>
           </div>
-        </DialogFooter>
-      </DialogContent>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

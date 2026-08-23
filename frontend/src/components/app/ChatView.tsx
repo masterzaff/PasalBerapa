@@ -56,7 +56,7 @@ function PanelButton({ onClick, icon: Icon, label, count, testId }) {
 
 export default function ChatView({ onOpenAuth }) {
   const s = useSession();
-  const { busy: analyzing, busyMode } = useAnalysis();
+  const { busy: analyzing, busyMode, busyMessageId } = useAnalysis();
   const ui = useUI();
   const { user, token, encKey } = useAuth();
   const router = useRouter();
@@ -354,7 +354,7 @@ export default function ChatView({ onOpenAuth }) {
                 <Message key={m.id} m={m} />
               ))}
 
-              {analyzing && (
+              {analyzing && !busyMessageId && (
                 <div className="flex gap-2.5">
                   <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
                     <Bot className="h-4 w-4" />

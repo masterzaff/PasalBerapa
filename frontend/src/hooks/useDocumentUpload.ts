@@ -2,6 +2,8 @@ import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { extractPdf, extractImage, EXTRACT_MODES } from "@/lib/pdfExtract";
 import { useSession } from "@/context/SessionContext";
+import { useConnection } from "@/context/ConnectionContext";
+import { maskPII } from "@/lib/api";
 
 const IMAGE_TYPES = /^image\/(jpeg|jpg|png|webp|bmp|gif)$/i;
 const IMAGE_EXT = /\.(jpe?g|png|webp|bmp|gif)$/i;
@@ -17,7 +19,18 @@ function isImage(f) {
 // + cancel. PDFs: embedded text first, OCR (Indonesian) per scanned page.
 // Photos: OCR (Indonesian) directly on the image.
 export function useDocumentUpload() {
-  const { setFile, setRawText, setExtractInfo, resetDocument } = useSession();
+  const {
+    sessionId,
+    setFile,
+    setRawText,
+    setExtractInfo,
+    setMaskedText,
+    setPiiMapping,
+    setPiiConfirmed,
+    setShowPiiModal,
+    resetDocument,
+  } = useSession();
+  const conn = useConnection();
   const [progress, setProgress] = useState(null); // {percent, message}
   const abortRef = useRef(null);
   const busy = Boolean(progress);
@@ -65,6 +78,38 @@ export function useDocumentUpload() {
         setFile({ name: f.name, size: f.size });
         setRawText(result.text);
         setExtractInfo({ totalPages: result.totalPages, usedOcr: result.usedOcr, pages: result.pages });
+
+        // Scan PII immediately upon upload / OCR
+        if (conn.maskConfigured) {
+          setProgress({ percent: 95, message: "Memindai sensor data pribadi (PII)…" });
+          try {
+            const r = await maskPII({
+              text: result.text,
+              sessionId,
+              knownMapping: null,
+            });
+            setMaskedText(r.maskedText || result.text);
+            setPiiMapping(r.mapping || {});
+
+            const autoConfirm =
+              typeof window !== "undefined" &&
+              localStorage.getItem("pasalberapa_auto_confirm_pii") === "true";
+
+            if (autoConfirm) {
+              setPiiConfirmed(true);
+            } else {
+              setShowPiiModal(true);
+            }
+          } catch (err) {
+            console.error("PII scan error on upload:", err);
+            setMaskedText(result.text);
+            setPiiMapping({});
+          }
+        } else {
+          setMaskedText(result.text);
+          setPiiMapping({});
+        }
+
         toast.success(
           pdf
             ? `Dokumen kebaca! ${result.totalPages} halaman${result.usedOcr ? " (OCR)" : ""}.`
@@ -84,7 +129,18 @@ export function useDocumentUpload() {
         abortRef.current = null;
       }
     },
-    [setFile, setRawText, setExtractInfo, resetDocument]
+    [
+      sessionId,
+      conn.maskConfigured,
+      setFile,
+      setRawText,
+      setExtractInfo,
+      setMaskedText,
+      setPiiMapping,
+      setPiiConfirmed,
+      setShowPiiModal,
+      resetDocument,
+    ]
   );
 
   return { uploadFile, progress, busy, cancel };

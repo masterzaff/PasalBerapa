@@ -19,6 +19,7 @@ export function AnalysisProvider({ children }) {
   const conn = useConnection();
   const [busy, setBusy] = useState(false);
   const [busyMode, setBusyMode] = useState(null);
+  const [busyMessageId, setBusyMessageId] = useState(null);
   const pendingActionRef = useRef(null);
   // Set when a queued analysis is abandoned (PII review dismissed) so the
   // composer can hand the user their typed question back instead of losing it.
@@ -60,7 +61,7 @@ export function AnalysisProvider({ children }) {
         return { masked: remasked, mapping };
       }
     },
-    [conn.maskConfigured, s]
+    [conn, s]
   );
 
   const ensureMasked = useCallback(async () => {
@@ -90,6 +91,7 @@ export function AnalysisProvider({ children }) {
       }
       setBusy(true);
       setBusyMode(mode);
+      setBusyMessageId(regenerateMessageId || null);
       if (!regenerateMessageId) {
         const userContent = question || MODE_LABELS[mode] || "Analisis";
         s.addMessage({ role: "user", mode, content: userContent });
@@ -210,6 +212,7 @@ export function AnalysisProvider({ children }) {
         abortRef.current = null;
         setBusy(false);
         setBusyMode(null);
+        setBusyMessageId(null);
       }
     },
     [s, conn, maskQuestion]
@@ -227,6 +230,16 @@ export function AnalysisProvider({ children }) {
           setBusy(false);
           setBusyMode(null);
         }
+
+        const autoConfirm =
+          typeof window !== "undefined" &&
+          localStorage.getItem("pasalberapa_auto_confirm_pii") === "true";
+
+        if (autoConfirm) {
+          s.setPiiConfirmed(true);
+          return executeAnalysis({ mode, question, regenerateMessageId });
+        }
+
         pendingActionRef.current = { mode, question, regenerateMessageId };
         s.setShowPiiModal(true);
         return;
@@ -299,7 +312,7 @@ export function AnalysisProvider({ children }) {
   return (
     <Ctx.Provider
       value={{
-        run, runPending, cancelPending, cancel, busy, busyMode, ensureMasked,
+        run, runPending, cancelPending, cancel, busy, busyMode, busyMessageId, ensureMasked,
         restoredQuestion, consumeRestoredQuestion, editUserMessage,
       }}
     >
