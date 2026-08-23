@@ -106,10 +106,13 @@ export default function ChatView({ onOpenAuth }) {
           s.file?.name ||
           (firstUserMsg && firstUserMsg.content ? firstUserMsg.content.slice(0, 60) : "Percakapan");
         // Mask at the boundary: React state holds real values for display, but
-        // nothing readable may reach the server. debugMessages/sentMasked/
-        // receivedRaw are live-inspection-only copies of the LLM turn — useful
-        // on screen, not worth persisting (reconstructable from `content`).
-        const stripped = s.messages.map(({ debugMessages, sentMasked, receivedRaw, ...rest }) => rest);
+        // nothing readable may reach the server. debugMessages is the full
+        // system/tool LLM request — dev-only, not worth persisting.
+        // sentMasked/receivedRaw ARE persisted: unlike debugMessages they're
+        // already in masked/tag form (same trust level as `content` after
+        // remaskMessages below), and they're what the "Pesan Asli" viewer
+        // shows — without this a refresh loses the one thing that view is for.
+        const stripped = s.messages.map(({ debugMessages, ...rest }) => rest);
         const persistMessages = remaskMessages(stripped, s.piiMapping);
         const maskedText = s.maskedText || remaskText(s.rawText || "", s.piiMapping);
         const risks = remaskRisks(s.risks, s.piiMapping);
