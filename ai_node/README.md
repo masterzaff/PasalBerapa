@@ -95,15 +95,21 @@ curl -s -X POST http://localhost:8000/analyze \
 
 ## Menyambungkan ke Frontend
 
-Frontend membaca 3 endpoint (via **Settings** di UI, atau env `frontend/.env`):
+Frontend membaca 3 endpoint dari env saat **build**:
 
 | Env frontend | Isi |
 | --- | --- |
-| `REACT_APP_AI_NODE_URL` | `https://ai-node.domainmu.com` (untuk `GET /health`) |
-| `REACT_APP_PII_ENDPOINT` | `https://ai-node.domainmu.com/mask` |
-| `REACT_APP_ANALYZE_ENDPOINT` | `https://ai-node.domainmu.com/analyze` |
+| `NEXT_PUBLIC_AI_NODE_URL` | `https://ai-node.domainmu.com` (untuk `GET /health`) |
+| `NEXT_PUBLIC_PII_ENDPOINT` | `https://ai-node.domainmu.com/mask` |
+| `NEXT_PUBLIC_ANALYZE_ENDPOINT` | `https://ai-node.domainmu.com/analyze` |
+| `NEXT_PUBLIC_TIMEOUT_MS` | opsional, default `60000` |
 
-Setelah node kamu online, cukup isi ketiga nilai itu di panel **Settings** (disimpan
-lokal di browser) atau di `frontend/.env`. Tidak perlu ubah kode frontend.
+`NEXT_PUBLIC_*` di-inline oleh Next saat kompilasi, jadi **ganti nilainya =
+rebuild**. Itu memang kontraknya: konfigurasi deployment ditentukan oleh
+deployment, bukan oleh state per-browser.
+
+> Panel **Settings** yang dulu menimpa nilai ini lewat `localStorage` sudah
+> dihapus. Override per-browser gampang menyimpang diam-diam dari konfigurasi
+> deployment dan cuma kelihatan lewat devtools.
 
 > Pastikan CORS mengizinkan origin frontend (default `CORS_ORIGINS=*`).

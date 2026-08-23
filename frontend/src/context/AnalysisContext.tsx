@@ -89,7 +89,7 @@ export function AnalysisProvider({ children }) {
   const executeAnalysis = useCallback(
     async ({ mode, question, customMaskedText, customMapping, regenerateMessageId }) => {
       if (!conn.analyzeConfigured) {
-        toast.error("Endpoint Analisis belum diatur. Buka Settings dulu ya.");
+        toast.error("Endpoint Analisis belum dikonfigurasi di build ini.");
         throw new NotConfiguredError("Analisis");
       }
       setBusy(true);

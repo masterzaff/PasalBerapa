@@ -5,7 +5,9 @@ import { testConnection } from "@/lib/api";
 const Ctx = createContext(null);
 
 export function ConnectionProvider({ children }) {
-  const [cfg, setCfg] = useState(getEndpoints);
+  // Config is build-time constant now (no runtime override layer), so this is a
+  // stable value rather than state that has to be refreshed.
+  const cfg = getEndpoints();
   const [status, setStatus] = useState("idle"); // idle|testing|connected|failed|unconfigured
   const [detail, setDetail] = useState(null);
   const [latency, setLatency] = useState(null);
@@ -13,7 +15,6 @@ export function ConnectionProvider({ children }) {
 
   const check = useCallback(async () => {
     const c = getEndpoints();
-    setCfg(c);
     if (!c.aiNodeUrl || !c.aiNodeUrl.trim()) {
       setStatus("unconfigured");
       setError(null);
@@ -36,12 +37,6 @@ export function ConnectionProvider({ children }) {
     }
   }, []);
 
-  const refreshCfg = useCallback(() => {
-    const c = getEndpoints();
-    setCfg(c);
-    return c;
-  }, []);
-
   useEffect(() => {
     check();
   }, [check]);
@@ -54,11 +49,10 @@ export function ConnectionProvider({ children }) {
       latency,
       error,
       check,
-      refreshCfg,
       analyzeConfigured: hasAnalyzeConfigured(cfg),
       maskConfigured: hasMaskConfigured(cfg),
     }),
-    [cfg, status, detail, latency, error, check, refreshCfg]
+    [cfg, status, detail, latency, error, check]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

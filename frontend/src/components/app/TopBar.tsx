@@ -1,13 +1,13 @@
 import React from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Gavel, RotateCcw, History, LogOut, UserPlus, Building2, User, SquarePen, Lock, Settings, KeyRound } from "lucide-react";
+import { Gavel, RotateCcw, History, LogOut, UserPlus, Building2, User, SquarePen, Lock, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSession } from "@/context/SessionContext";
 import { useAuth } from "@/context/AuthContext";
 import { useUI } from "@/context/UIContext";
 
-export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome, onOpenUnlock, onOpenSettings, onOpenChangePw }) {
+export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome, onOpenUnlock, onOpenChangePw }) {
   const { resetSession, hasDocument, messages } = useSession();
   const { user, logout, encKey } = useAuth();
   const { audienceMode, setAudienceMode } = useUI();
@@ -91,18 +91,6 @@ export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome, onOpenUnlo
               <TooltipContent>Mulai chat atau analisis dokumen baru</TooltipContent>
             </Tooltip>
           )}
-
-          {/* Endpoint config. The node is self-hosted, so being able to point
-              the app at your own is core to the pitch — this modal existed but
-              nothing rendered it. */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button data-testid="open-settings-button" variant="ghost" size="icon" onClick={onOpenSettings}>
-                <Settings className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Pengaturan endpoint AI Node</TooltipContent>
-          </Tooltip>
 
           {user ? (
             <>

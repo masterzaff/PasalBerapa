@@ -15,7 +15,6 @@ import AuthPage from "@/components/app/AuthPage";
 import HistorySheet from "@/components/app/HistorySheet";
 import PiiReviewModal from "@/components/app/PiiReviewModal";
 import UnlockModal from "@/components/app/UnlockModal";
-import SettingsModal from "@/components/app/SettingsModal";
 import ChangePasswordModal from "@/components/app/ChangePasswordModal";
 
 interface AppShellProps {
@@ -33,7 +32,6 @@ export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShe
   const [showAuth, setShowAuth] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showUnlock, setShowUnlock] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [showChangePw, setShowChangePw] = useState(false);
 
   useEffect(() => {
@@ -90,7 +88,7 @@ export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShe
 
   return (
     <div className="App flex min-h-screen flex-col bg-background text-foreground paper-grain">
-      <TopBar onOpenAuth={openAuth} onOpenHistory={openHistory} onGoHome={goHome} onOpenUnlock={() => setShowUnlock(true)} onOpenSettings={() => setShowSettings(true)} onOpenChangePw={() => setShowChangePw(true)} />
+      <TopBar onOpenAuth={openAuth} onOpenHistory={openHistory} onGoHome={goHome} onOpenUnlock={() => setShowUnlock(true)} onOpenChangePw={() => setShowChangePw(true)} />
       <main className="flex min-h-0 flex-1 flex-col">
         {isChat ? (
           <ChatView onOpenAuth={openAuth} onOpenHistory={openHistory} />
@@ -102,7 +100,6 @@ export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShe
       <HistorySheet open={showHistory} onOpenChange={setShowHistory} />
       <PiiReviewModal open={showPiiModal} onOpenChange={setShowPiiModal} />
       <UnlockModal open={showUnlock} onOpenChange={setShowUnlock} />
-      <SettingsModal open={showSettings} onOpenChange={setShowSettings} />
       <ChangePasswordModal open={showChangePw} onOpenChange={setShowChangePw} />
       <Toaster position="top-center" richColors closeButton />
     </div>
