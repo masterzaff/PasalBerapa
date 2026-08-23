@@ -16,8 +16,13 @@ async function req(path, { method = "GET", body, token } = {}) {
 }
 
 export const authApi = {
+  // Which KDF this account uses, so the client knows whether to send a derived
+  // authSecret (v1) or the raw password (v0, pre-split-KDF accounts).
+  authParams: (email) => req(`/auth/params?email=${encodeURIComponent(email)}`),
   register: (b) => req("/auth/register", { method: "POST", body: b }),
   login: (b) => req("/auth/login", { method: "POST", body: b }),
+  upgradeKdf: (authSecret, token) =>
+    req("/auth/upgrade-kdf", { method: "POST", body: { auth_secret: authSecret }, token }),
   me: (token) => req("/auth/me", { token }),
   listConversations: (token) => req("/conversations", { token }),
   saveConversation: (b, token) => req("/conversations", { method: "POST", body: b, token }),

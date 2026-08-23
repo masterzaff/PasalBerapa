@@ -24,6 +24,8 @@ import { useAnalysis } from "@/context/AnalysisContext";
 import { useUI } from "@/context/UIContext";
 import { useAuth } from "@/context/AuthContext";
 import { authApi } from "@/lib/authApi";
+import { remaskMessages, remaskText } from "@/lib/pii";
+import { encryptMapping } from "@/lib/crypto";
 
 function PanelButton({ onClick, icon: Icon, label, count, testId }) {
   return (
@@ -41,7 +43,7 @@ export default function ChatView({ onOpenAuth }) {
   const s = useSession();
   const { busy: analyzing, busyMode } = useAnalysis();
   const ui = useUI();
-  const { user, token } = useAuth();
+  const { user, token, encKey } = useAuth();
   const router = useRouter();
   const feedRef = useRef(null);
   const [saving, setSaving] = useState(false);
@@ -83,14 +85,34 @@ export default function ChatView({ onOpenAuth }) {
           convTitle ||
           s.file?.name ||
           (firstUserMsg && firstUserMsg.content ? firstUserMsg.content.slice(0, 60) : "Percakapan");
-        // debugMessages is a full copy of the LLM request per reply — useful live,
-        // not worth persisting (bloats every autosave for no benefit on reload).
-        const persistMessages = s.messages.map(({ debugMessages, ...rest }) => rest);
+        // Mask at the boundary: React state holds real values for display, but
+        // nothing readable may reach the server. debugMessages is a full copy of
+        // the LLM request per reply — useful live, not worth persisting.
+        const stripped = s.messages.map(({ debugMessages, ...rest }) => rest);
+        const persistMessages = remaskMessages(stripped, s.piiMapping);
+        const maskedText = s.maskedText || remaskText(s.rawText || "", s.piiMapping);
+        // Encrypted client-side; the server stores an opaque blob. Without a
+        // key (locked session) we simply don't touch what's already stored.
+        const mappingEnc = encKey
+          ? await encryptMapping(encKey, s.piiMapping || {})
+          : undefined;
+
         if (convId) {
-          await authApi.updateConversation(convId, { title, messages: persistMessages, pii_mapping: s.piiMapping }, token);
+          await authApi.updateConversation(
+            convId,
+            { title, messages: persistMessages, masked_text: maskedText, pii_mapping_enc: mappingEnc },
+            token
+          );
         } else {
           const res = await authApi.saveConversation(
-            { title, messages: persistMessages, doc_name: s.file?.name || null, pii_mapping: s.piiMapping },
+            {
+              id: s.sessionId,
+              title,
+              messages: persistMessages,
+              doc_name: s.file?.name || null,
+              masked_text: maskedText,
+              pii_mapping_enc: mappingEnc,
+            },
             token
           );
           setConvId(res.id);
@@ -105,7 +127,8 @@ export default function ChatView({ onOpenAuth }) {
         setSaving(false);
       }
     },
-    [user, s.messages, s.file, s.piiMapping, convId, convTitle, token, firstUserMsg, setConvId, setConvTitle]
+    [user, s.messages, s.file, s.piiMapping, s.maskedText, s.rawText, s.sessionId,
+     encKey, convId, convTitle, token, firstUserMsg, setConvId, setConvTitle]
   );
 
   // Autosave: simpan otomatis tiap ada pesan baru (kalau sudah login).

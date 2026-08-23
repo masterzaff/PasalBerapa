@@ -3,6 +3,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
+import { hydrateConversation } from "@/lib/conversation";
 import { useSession } from "@/context/SessionContext";
 import { useAuth } from "@/context/AuthContext";
 import { authApi } from "@/lib/authApi";
@@ -12,6 +14,7 @@ import ChatView from "@/components/app/ChatView";
 import AuthPage from "@/components/app/AuthPage";
 import HistorySheet from "@/components/app/HistorySheet";
 import PiiReviewModal from "@/components/app/PiiReviewModal";
+import UnlockModal from "@/components/app/UnlockModal";
 
 interface AppShellProps {
   sessionId?: string;
@@ -20,13 +23,14 @@ interface AppShellProps {
 
 export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShellProps = {}) {
   const { hasDocument, messages, sessionId, loadConversation, showPiiModal, setShowPiiModal } = useSession();
-  const { token, loading: authLoading } = useAuth();
+  const { token, encKey, loading: authLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   const [mounted, setMounted] = useState(false);
   const [showAuth, setShowAuth] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showUnlock, setShowUnlock] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -67,10 +71,14 @@ export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShe
     setRestoring(true);
     authApi
       .getConversation(urlId, token)
-      .then((d) => loadConversation({ id: urlId, messages: d.messages || [], docName: d.doc_name, title: d.title, piiMapping: d.pii_mapping }))
+      .then(async (d) => {
+        const h = await hydrateConversation(d, encKey);
+        loadConversation({ ...h, id: urlId });
+        if (h.locked) toast.info("Data pribadi terkunci — masukkan kata sandi untuk membukanya.");
+      })
       .catch(() => router.replace("/"))
       .finally(() => setRestoring(false));
-  }, [mounted, urlId, isNewChat, sessionId, token, authLoading, router, loadConversation]);
+  }, [mounted, urlId, isNewChat, sessionId, token, encKey, authLoading, router, loadConversation]);
 
   const goHome = () => {
     router.push("/");
@@ -78,7 +86,7 @@ export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShe
 
   return (
     <div className="App flex min-h-screen flex-col bg-background text-foreground paper-grain">
-      <TopBar onOpenAuth={openAuth} onOpenHistory={openHistory} onGoHome={goHome} />
+      <TopBar onOpenAuth={openAuth} onOpenHistory={openHistory} onGoHome={goHome} onOpenUnlock={() => setShowUnlock(true)} />
       <main className="flex min-h-0 flex-1 flex-col">
         {isChat ? (
           <ChatView onOpenAuth={openAuth} onOpenHistory={openHistory} />
@@ -89,6 +97,7 @@ export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShe
       {showAuth && <AuthPage onClose={() => setShowAuth(false)} />}
       <HistorySheet open={showHistory} onOpenChange={setShowHistory} />
       <PiiReviewModal open={showPiiModal} onOpenChange={setShowPiiModal} />
+      <UnlockModal open={showUnlock} onOpenChange={setShowUnlock} />
       <Toaster position="top-center" richColors closeButton />
     </div>
   );

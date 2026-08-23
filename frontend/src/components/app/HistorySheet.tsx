@@ -11,9 +11,10 @@ import { toast } from "sonner";
 import { authApi } from "@/lib/authApi";
 import { useAuth } from "@/context/AuthContext";
 import { useSession } from "@/context/SessionContext";
+import { hydrateConversation } from "@/lib/conversation";
 
 export default function HistorySheet({ open, onOpenChange }) {
-  const { token } = useAuth();
+  const { token, encKey } = useAuth();
   const s = useSession();
   const router = useRouter();
   const pathname = usePathname();
@@ -47,10 +48,12 @@ export default function HistorySheet({ open, onOpenChange }) {
   const openConv = async (id) => {
     try {
       const d = await authApi.getConversation(id, token);
-      s.loadConversation({ id, messages: d.messages || [], docName: d.doc_name, title: d.title, piiMapping: d.pii_mapping });
+      const h = await hydrateConversation(d, encKey);
+      s.loadConversation({ ...h, id });
       onOpenChange(false);
       router.push(`/chat/${id}`);
-      toast.success("Percakapan dibuka.");
+      if (h.locked) toast.info("Data pribadi terkunci — masukkan kata sandi untuk membukanya.");
+      else toast.success("Percakapan dibuka.");
     } catch (e) {
       toast.error(e.message || "Gagal buka percakapan.");
     }

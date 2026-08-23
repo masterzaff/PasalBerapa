@@ -1,15 +1,15 @@
 import React from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Gavel, RotateCcw, History, LogOut, UserPlus, Building2, User, SquarePen } from "lucide-react";
+import { Gavel, RotateCcw, History, LogOut, UserPlus, Building2, User, SquarePen, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSession } from "@/context/SessionContext";
 import { useAuth } from "@/context/AuthContext";
 import { useUI } from "@/context/UIContext";
 
-export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome }) {
+export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome, onOpenUnlock }) {
   const { resetSession, hasDocument, messages } = useSession();
-  const { user, logout } = useAuth();
+  const { user, logout, encKey } = useAuth();
   const { audienceMode, setAudienceMode } = useUI();
   const router = useRouter();
   const pathname = usePathname();
@@ -94,6 +94,25 @@ export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome }) {
 
           {user ? (
             <>
+              {/* Signed in but no key in this browser session (restart, or a
+                  second device): saved PII stays as tags until unlocked. */}
+              {!encKey && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      data-testid="unlock-button"
+                      variant="outline"
+                      size="sm"
+                      onClick={onOpenUnlock}
+                      className="gap-1.5 border-amber-500/40 text-amber-600 hover:text-amber-700 dark:text-amber-400"
+                    >
+                      <Lock className="h-4 w-4" />
+                      <span className="hidden sm:inline">Terkunci</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Buka kunci data pribadi di percakapan tersimpan</TooltipContent>
+                </Tooltip>
+              )}
               <Button data-testid="open-history-button" variant="outline" size="sm" onClick={onOpenHistory} className="gap-2">
                 <History className="h-4 w-4" />
                 <span className="hidden sm:inline">Riwayat</span>

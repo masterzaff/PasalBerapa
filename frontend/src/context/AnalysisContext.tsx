@@ -105,7 +105,11 @@ export function AnalysisProvider({ children }) {
       try {
         const baseMapping = customMapping ?? s.piiMapping ?? {};
         const { masked: maskedQuestion, mapping } = await maskQuestion(question, baseMapping);
-        const maskedText = customMaskedText ?? (s.hasDocument ? (s.maskedText || remaskText(s.rawText, mapping)) : "");
+        // s.maskedText first: a conversation restored from storage has no raw
+        // text (never persisted) but does have the masked document, and without
+        // this the LLM would be answering follow-ups with no document at all.
+        const maskedText =
+          customMaskedText ?? (s.maskedText || (s.hasDocument ? remaskText(s.rawText, mapping) : ""));
 
         const history = s.messages
           .filter((m) => m.role && !m.error && m.id !== regenerateMessageId)

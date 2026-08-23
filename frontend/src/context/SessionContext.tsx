@@ -9,8 +9,15 @@ const SessionContext = createContext(null);
 
 const SS_KEY = "pasalberapa.session.v1";
 
-const newSessionId = () =>
-  "sess_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+// This id is now the conversation's database primary key (the client mints it
+// so /chat/:id is stable from the first message and there is no separate
+// convId), so it needs real uniqueness — Math.random is not good enough for a PK.
+const newSessionId = () => {
+  try {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  } catch (_) {}
+  return "sess_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+};
 
 function loadSnapshot() {
   if (typeof window === "undefined") return null;
@@ -144,14 +151,18 @@ export function SessionProvider({ children }) {
 
   // Load a saved conversation (from history/DB) into the active session.
   // Keeps the given id so the URL /chat/:id stays stable across refresh.
-  const loadConversation = useCallback(({ id, messages: msgs, docName, title, piiMapping } = {}) => {
+  const loadConversation = useCallback(({ id, messages: msgs, docName, title, piiMapping, maskedText } = {}) => {
     setSessionId(id || newSessionId());
     resetDocument();
-    // The raw document text is never persisted, so a restored conversation has
-    // no document — but its PII mapping is, and must come back so replies stay
-    // readable and re-sent history stays masked.
+    // The RAW document is never persisted (it is the unmasked original), but the
+    // masked copy is — that is what gives a resumed conversation its document
+    // context back, so follow-up questions aren't answered against nothing.
     setFile(docName ? { name: docName } : null);
+    setMaskedText(maskedText || "");
     setPiiMapping(piiMapping && typeof piiMapping === "object" ? piiMapping : {});
+    // The mapping was already reviewed when this conversation was created, and
+    // there is no raw text left to review — don't re-prompt on an empty doc.
+    setPiiConfirmed(true);
     setMessages(Array.isArray(msgs) ? msgs : []);
     setConvId(id || null);
     setConvTitle(title || null);

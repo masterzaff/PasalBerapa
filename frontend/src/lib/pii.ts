@@ -39,6 +39,27 @@ export function remaskText(text, mapping) {
   return out;
 }
 
+// Message-list helpers. React state holds messages UNMASKED (display, copy and
+// regenerate all read it), so masking happens at the boundary — anything
+// leaving the browser goes through remaskMessages, anything arriving from the
+// server goes through unmaskMessages. Both the persist path and the analyze
+// history path used to inline this separately, which is how they drifted apart.
+export function remaskMessages(messages, mapping) {
+  if (!Array.isArray(messages)) return [];
+  return messages.map((m) => ({ ...m, content: remaskText(m.content || "", mapping) }));
+}
+
+export function unmaskMessages(messages, mapping) {
+  if (!Array.isArray(messages)) return [];
+  return messages.map((m) => ({
+    ...m,
+    content: unmaskText(m.content || "", mapping),
+    citations: Array.isArray(m.citations)
+      ? m.citations.map((c) => ({ ...c, snippet: unmaskText(c.snippet || "", mapping) }))
+      : m.citations,
+  }));
+}
+
 // Human label for a tag type, e.g. "PERSON" -> "Nama".
 export function tagTypeLabel(type) {
   const map = {

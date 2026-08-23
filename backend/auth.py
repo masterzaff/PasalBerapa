@@ -25,15 +25,26 @@ auth_router = APIRouter(prefix="/api")
 
 
 # ---------- Models ----------
+CURRENT_KDF = 1
+
+
 class RegisterReq(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=6)
+    # Client-derived authSecret (split-KDF), never the raw password. `password`
+    # stays accepted so a legacy client still works, but new accounts are v1.
+    auth_secret: Optional[str] = None
+    password: Optional[str] = Field(default=None, min_length=6)
     name: Optional[str] = None
 
 
 class LoginReq(BaseModel):
     email: EmailStr
-    password: str
+    auth_secret: Optional[str] = None
+    password: Optional[str] = None
+
+
+class UpgradeKdfReq(BaseModel):
+    auth_secret: str
 
 
 class ConversationIn(BaseModel):
@@ -41,13 +52,16 @@ class ConversationIn(BaseModel):
     title: Optional[str] = None
     messages: List[Dict[str, Any]] = []
     doc_name: Optional[str] = None
-    pii_mapping: Dict[str, str] = {}
+    masked_text: Optional[str] = None
+    # base64(iv ‖ AES-GCM ciphertext). Opaque to the server, by design.
+    pii_mapping_enc: Optional[str] = None
 
 
 class ConversationUpdate(BaseModel):
     title: Optional[str] = None
     messages: Optional[List[Dict[str, Any]]] = None
-    pii_mapping: Optional[Dict[str, str]] = None
+    masked_text: Optional[str] = None
+    pii_mapping_enc: Optional[str] = None
 
 
 # ---------- Helpers ----------
@@ -105,20 +119,37 @@ async def get_current_user(
 
 
 # ---------- Auth routes ----------
+@auth_router.get("/auth/params")
+async def auth_params(email: str, db: AsyncSession = Depends(get_db)):
+    """Which KDF the client should use for this account.
+
+    Unknown emails return the CURRENT version rather than 404, so this cannot be
+    used to enumerate registered accounts. The salt itself is not returned — it
+    is derived from the email client-side, so there is nothing to leak.
+    """
+    res = await db.execute(select(User).where(User.email == (email or "").lower().strip()))
+    u = res.scalar_one_or_none()
+    return {"kdf_version": u.kdf_version if u else CURRENT_KDF}
+
+
 @auth_router.post("/auth/register")
 async def register(req: RegisterReq, db: AsyncSession = Depends(get_db)):
     email = req.email.lower().strip()
+    secret = req.auth_secret or req.password
+    if not secret:
+        raise HTTPException(status_code=422, detail="Kata sandi diperlukan.")
     stmt = select(User).where(User.email == email)
     res = await db.execute(stmt)
     if res.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Email ini sudah terdaftar. Silakan login.")
-    
+
     try:
         user = User(
             id=str(uuid.uuid4()),
             email=email,
             name=req.name.strip() if req.name else None,
-            password_hash=_hash_pw(req.password),
+            kdf_version=CURRENT_KDF if req.auth_secret else 0,
+            password_hash=_hash_pw(secret),
             created_at=datetime.now(timezone.utc)
         )
         db.add(user)
@@ -136,9 +167,29 @@ async def login(req: LoginReq, db: AsyncSession = Depends(get_db)):
     stmt = select(User).where(User.email == email)
     res = await db.execute(stmt)
     u = res.scalar_one_or_none()
-    if not u or not _verify_pw(req.password, u.password_hash):
+    # v1 accounts verify the client-derived authSecret; v0 the raw password.
+    # The client picks which to send from GET /auth/params.
+    secret = req.auth_secret if (u and u.kdf_version >= 1) else req.password
+    if not u or not secret or not _verify_pw(secret, u.password_hash):
         raise HTTPException(status_code=401, detail="Email atau kata sandi tidak sesuai.")
-    return {"token": _make_token(u.id), "user": _public_user(u)}
+    return {"token": _make_token(u.id), "user": _public_user(u), "kdf_version": u.kdf_version}
+
+
+@auth_router.post("/auth/upgrade-kdf")
+async def upgrade_kdf(
+    req: UpgradeKdfReq,
+    current: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Move a legacy (v0) account onto the split-KDF, once, after it has just
+    authenticated with its real password. From here the server only ever sees
+    the derived authSecret."""
+    if current.kdf_version >= CURRENT_KDF:
+        return {"kdf_version": current.kdf_version}
+    current.password_hash = _hash_pw(req.auth_secret)
+    current.kdf_version = CURRENT_KDF
+    await db.commit()
+    return {"kdf_version": current.kdf_version}
 
 
 @auth_router.get("/auth/me")
@@ -191,7 +242,10 @@ async def save_or_upsert_conversation(
             if existing:
                 existing.title = clean_title
                 existing.messages = body.messages
-                existing.pii_mapping = body.pii_mapping
+                if body.masked_text is not None:
+                    existing.masked_text = body.masked_text
+                if body.pii_mapping_enc is not None:
+                    existing.pii_mapping_enc = body.pii_mapping_enc
                 if body.doc_name:
                     existing.doc_name = body.doc_name
                 existing.updated_at = now
@@ -209,7 +263,8 @@ async def save_or_upsert_conversation(
             title=clean_title,
             doc_name=body.doc_name,
             messages=body.messages,
-            pii_mapping=body.pii_mapping,
+            masked_text=body.masked_text,
+            pii_mapping_enc=body.pii_mapping_enc,
             created_at=now,
             updated_at=now
         )
@@ -245,7 +300,8 @@ async def get_conversation(
         "title": c.title,
         "doc_name": c.doc_name,
         "messages": c.messages or [],
-        "pii_mapping": c.pii_mapping or {},
+        "masked_text": c.masked_text or "",
+        "pii_mapping_enc": c.pii_mapping_enc or None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
     }
 
@@ -272,8 +328,10 @@ async def update_conversation(
             c.title = body.title.strip()[:140]
         if body.messages is not None:
             c.messages = body.messages
-        if body.pii_mapping is not None:
-            c.pii_mapping = body.pii_mapping
+        if body.masked_text is not None:
+            c.masked_text = body.masked_text
+        if body.pii_mapping_enc is not None:
+            c.pii_mapping_enc = body.pii_mapping_enc
         c.updated_at = datetime.now(timezone.utc)
         
         await db.commit()
