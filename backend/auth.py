@@ -15,6 +15,7 @@ from fastapi import APIRouter, Header, HTTPException, Depends
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, false
+from sqlalchemy.exc import IntegrityError
 
 import ai_client
 from database import get_db, User, Conversation, MessageFeedback
@@ -476,6 +477,19 @@ async def send_message(
             updated_at=now,
         )
         db.add(c)
+        try:
+            # Flush now, before the slow _call_analyze below, so the PK
+            # uniqueness constraint is enforced immediately instead of only
+            # at the final commit ~90s later. Without this, a retried
+            # request for the same conv_id (double-click, or a client retry
+            # after a slow/stalled analyze) sails past both existence
+            # checks above and only collides at commit, raising a raw
+            # IntegrityError instead of the clean 404 the "taken" check
+            # above already gives for this exact situation.
+            await db.flush()
+        except IntegrityError:
+            await db.rollback()
+            raise HTTPException(status_code=404, detail="Percakapan tidak ditemukan.")
 
     # Mode tamu (unauthenticated): dibatasi 1 giliran (turn) per percakapan
     if current is None:

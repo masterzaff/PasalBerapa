@@ -24,7 +24,7 @@ interface AppShellProps {
 }
 
 export default function AppShell({ sessionId: propId, isNewChat: propIsNew = false }: AppShellProps = {}) {
-  const { hasDocument, messages, sessionId, convVersion, loadConversation, resetSession, showPiiModal, setShowPiiModal } = useSession();
+  const { hasDocument, messages, sessionId, convId, convVersion, loadConversation, resetSession, showPiiModal, setShowPiiModal } = useSession();
   const { token, encKey, loading: authLoading } = useAuth();
   const pathname = usePathname();
 
@@ -82,8 +82,17 @@ export default function AppShell({ sessionId: propId, isNewChat: propIsNew = fal
     if (!mounted || !activeUrlId || activeUrlId === "new" || isExplicitNewChat || authLoading) return;
     if (!sessionId) return;
     if (triedRef.current === activeUrlId) return;
-    triedRef.current = activeUrlId;
     const isFreshLoad = sessionId !== activeUrlId;
+    if (!isFreshLoad && !convId) {
+      // Session minted locally and never sent to the server yet — e.g.
+      // Landing navigates to /chat/:id right after upload, before the first
+      // message creates the conversation row. Nothing to restore; a GET here
+      // would just 404 (always, in guest mode, since it has no history to
+      // fall back on).
+      triedRef.current = activeUrlId;
+      return;
+    }
+    triedRef.current = activeUrlId;
     if (isFreshLoad) setRestoring(true);
     authApi
       .getConversation(activeUrlId, token)
@@ -104,7 +113,7 @@ export default function AppShell({ sessionId: propId, isNewChat: propIsNew = fal
         }
       })
       .finally(() => { if (isFreshLoad) setRestoring(false); });
-  }, [mounted, activeUrlId, isExplicitNewChat, sessionId, token, encKey, authLoading, loadConversation]);
+  }, [mounted, activeUrlId, isExplicitNewChat, sessionId, convId, token, encKey, authLoading, loadConversation]);
 
   const handleGoHome = () => {
     navigateToHome();

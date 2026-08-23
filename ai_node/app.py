@@ -11,6 +11,7 @@ FastAPI server yang menjalankan seluruh "otak" PasalBerapa? di server-mu sendiri
 Konfigurasi via ENV (lihat .env.example). Kredensial LLM TIDAK di-hardcode.
 """
 import os
+import asyncio
 import logging
 from typing import List, Optional, Dict, Any
 
@@ -87,8 +88,12 @@ async def mask(req: MaskReq):
     yang melihat PII apa adanya. Selebihnya — DB, LLM, log — tidak boleh. Menulis
     isinya ke log akan diam-diam membatalkan seluruh desain privasi ini.
     """
-    masked_text, mapping, new_entities = masker.mask_text(
-        req.text or "", known_mapping=req.known_mapping
+    # masker.mask_text is CPU-bound (NER inference, plus the one-time model
+    # load on first call — measured ~30s cold) — called directly it blocks
+    # the event loop for that whole duration, stalling every other request
+    # (other users' /mask, /health, /analyze) in the meantime.
+    masked_text, mapping, new_entities = await asyncio.to_thread(
+        masker.mask_text, req.text or "", known_mapping=req.known_mapping
     )
     return {
         "masked_text": masked_text,
@@ -141,8 +146,16 @@ async def analyze(req: AnalyzeReq):
     )
 
     # 2) Jalankan Agentic ReAct Tool Calling loop
+    # llm.chat_agentic (dan pasal_client di baliknya) pakai httpx.Client
+    # SINKRON — dipanggil langsung di sini, itu akan memblokir event loop
+    # asyncio selama seluruh loop (bisa beberapa panggilan LLM x LLM_TIMEOUT
+    # detik), sehingga request lain (mask/health/analyze user lain) ikut
+    # tertahan. asyncio.to_thread melempar panggilan blocking ini ke thread
+    # pool supaya event loop tetap bisa melayani request lain selagi
+    # menunggu.
     try:
-        parsed, citations, actions, debug_messages = llm.chat_agentic(
+        parsed, citations, actions, debug_messages = await asyncio.to_thread(
+            llm.chat_agentic,
             messages=messages,
             tools=tools.LEGAL_TOOLS_SCHEMA,
             tool_executor=execute_tool,
