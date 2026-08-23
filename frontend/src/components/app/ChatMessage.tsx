@@ -182,28 +182,37 @@ export function Message({ m }) {
 
         {/* Action buttons (Copy, Debug, Regenerate). Always visible on
             touch/narrow screens — hover-only controls are unreachable there —
-            and focus-within keeps them usable from the keyboard. */}
-        {!m.error && (
-          <div className="flex items-center gap-1 opacity-100 transition-opacity focus-within:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors"
-              title="Salin jawaban"
-            >
-              {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
-              <span>{copied ? "Tersalin" : "Salin"}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setDebugOpen(true)}
-              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors"
-              title="Lihat request ke LLM"
-            >
-              <Bug className="h-3 w-3" />
-              <span>Debug</span>
-            </button>
-            {prevUserMsg && (
+            and focus-within keeps them usable from the keyboard.
+            An errored reply keeps Regenerate: it is the one message where
+            retrying matters most, and it used to be the one that hid it. */}
+        <div
+          className={`flex items-center gap-1 transition-opacity focus-within:opacity-100 ${
+            m.error ? "opacity-100" : "opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+          }`}
+        >
+          {!m.error && (
+            <>
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors"
+                title="Salin jawaban"
+              >
+                {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                <span>{copied ? "Tersalin" : "Salin"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDebugOpen(true)}
+                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors"
+                title="Lihat request ke LLM"
+              >
+                <Bug className="h-3 w-3" />
+                <span>Debug</span>
+              </button>
+            </>
+          )}
+          {prevUserMsg && (
               <button
                 type="button"
                 onClick={handleRegenerate}
@@ -212,11 +221,10 @@ export function Message({ m }) {
                 title="Buat ulang jawaban ini"
               >
                 <RotateCw className={`h-3 w-3 ${regenerating ? "animate-spin" : ""}`} />
-                <span>Regenerate</span>
+                <span>{m.error ? "Coba lagi" : "Regenerate"}</span>
               </button>
             )}
-          </div>
-        )}
+        </div>
       </div>
 
       <DebugRequestModal open={debugOpen} onOpenChange={setDebugOpen} messages={m.debugMessages || []} />

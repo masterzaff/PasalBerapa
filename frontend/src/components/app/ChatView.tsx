@@ -13,6 +13,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import ChatComposer from "@/components/app/ChatComposer";
 import { Message, TypingBubble } from "@/components/app/ChatMessage";
@@ -20,7 +22,7 @@ import DocumentPanel from "@/components/app/DocumentPanel";
 import RiskDashboard from "@/components/app/RiskDashboard";
 import PrivacyVault from "@/components/app/PrivacyVault";
 import { useSession } from "@/context/SessionContext";
-import { useAnalysis } from "@/context/AnalysisContext";
+import { useAnalysis, MODE_LABELS } from "@/context/AnalysisContext";
 import { useUI } from "@/context/UIContext";
 import { useAuth } from "@/context/AuthContext";
 import { authApi } from "@/lib/authApi";
@@ -49,6 +51,8 @@ export default function ChatView({ onOpenAuth }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
   const { convId, setConvId, convTitle, setConvTitle } = s;
   const savingRef = useRef(false);
 
@@ -141,12 +145,17 @@ export default function ChatView({ onOpenAuth }) {
     return () => clearTimeout(t);
   }, [s.messages, analyzing, user, persist]);
 
-  const rename = async () => {
+  const openRename = () => {
     if (!user) { onOpenAuth(); return; }
-    const next = window.prompt("Judul percakapan:", headerTitle);
-    if (next == null) return;
-    const title = next.trim();
+    setRenameValue(headerTitle);
+    setRenaming(true);
+  };
+
+  const submitRename = async (e) => {
+    e?.preventDefault?.();
+    const title = renameValue.trim();
     if (!title) return;
+    setRenaming(false);
     const ok = await persist(title);
     if (ok) toast.success("Judul diganti.");
     else toast.error("Gagal ganti judul.");
@@ -207,7 +216,7 @@ export default function ChatView({ onOpenAuth }) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuItem onClick={rename} data-testid="menu-rename">
+                  <DropdownMenuItem onClick={openRename} data-testid="menu-rename">
                     <Pencil className="mr-2 h-4 w-4" /> Ganti judul
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -281,7 +290,8 @@ export default function ChatView({ onOpenAuth }) {
                   </div>
                   <div>
                     <div className="mb-0.5 text-[11px] text-muted-foreground">
-                      PasalBerapa? {busyMode ? `· ${busyMode === "key_articles" ? "Jelaskan Pasal" : busyMode}` : ""}
+                      PasalBerapa?
+                      {busyMode ? ` · ${busyMode === "masking" ? "Menyensor data pribadi" : MODE_LABELS[busyMode] || busyMode}` : ""}
                     </div>
                     <TypingBubble />
                   </div>
@@ -297,6 +307,32 @@ export default function ChatView({ onOpenAuth }) {
           </div>
         </>
       )}
+
+      <Dialog open={renaming} onOpenChange={setRenaming}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg">Ganti judul percakapan</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={submitRename} className="space-y-3">
+            <Input
+              autoFocus
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              maxLength={140}
+              placeholder="Judul percakapan"
+              data-testid="rename-input"
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" size="sm" onClick={() => setRenaming(false)}>
+                Batal
+              </Button>
+              <Button type="submit" size="sm" disabled={!renameValue.trim()} data-testid="rename-submit">
+                Simpan
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>

@@ -90,6 +90,18 @@ export default function AuthPage({ onClose }) {
                 <Input id="password" type="password" required minLength={6} data-testid="auth-password-input" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="minimal 6 karakter" className="pl-9" />
               </div>
             </div>
+            {/* This has to be said BEFORE they commit, not discovered later:
+                the mapping key is derived from this password and the server
+                never has it, so there is no reset path that keeps the data. */}
+            {mode === "register" && (
+              <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
+                <strong className="text-amber-600 dark:text-amber-400">Simpan kata sandimu baik-baik.</strong>{" "}
+                Data pribadi di percakapanmu dienkripsi dengan kunci yang diturunkan dari
+                kata sandi ini, dan server tidak pernah memilikinya. Kalau kata sandi hilang,
+                percakapannya tetap ada tapi nama/NIK di dalamnya cuma bisa tampil sebagai
+                tag — tidak ada yang bisa memulihkannya, termasuk kami.
+              </p>
+            )}
             <Button type="submit" disabled={busy} data-testid="auth-submit-button" className="w-full gap-2">
               {busy && <Loader2 className="h-4 w-4 animate-spin" />}
               {mode === "register" ? "Daftar" : "Masuk"}
