@@ -162,7 +162,10 @@ export function Message({ m }) {
                   setEditContent(m.content);
                 } else if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  handleSaveEdit();
+                  const trimmed = (editContent || "").trim();
+                  if (trimmed && trimmed !== (m.content || "").trim()) {
+                    handleSaveEdit();
+                  }
                 }
               }}
               className="w-full min-h-[75px] bg-background text-foreground border rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none shadow-xs"
@@ -183,8 +186,8 @@ export function Message({ m }) {
               <button
                 type="button"
                 onClick={handleSaveEdit}
-                disabled={analyzing}
-                className="px-3 py-1 text-xs rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+                disabled={analyzing || !(editContent || "").trim() || (editContent || "").trim() === (m.content || "").trim()}
+                className="px-3 py-1 text-xs rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Simpan &amp; Kirim
               </button>
@@ -357,48 +360,57 @@ export function Message({ m }) {
                   title="Lihat pesan asli yang dikirim/diterima"
                 >
                   <Eye className="h-3 w-3" />
-                  <span>Pesan Asli</span>
+                  <span className="hidden sm:inline">Pesan Asli</span>
                 </button>
                 <span className="w-px h-3.5 bg-border mx-0.5" aria-hidden="true" />
-                <button
-                  type="button"
-                  onClick={() => handleThumb("up")}
-                  disabled={feedbackBusy}
-                  className={`inline-flex items-center px-2 py-0.5 rounded-md transition-colors disabled:opacity-50 ${
-                    currentFeedback === "up"
-                      ? "text-[hsl(var(--risk-safe))] bg-[hsl(var(--risk-safe))]/10"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                  title="Jawaban ini membantu"
-                >
-                  <ThumbsUp className={`h-3 w-3 ${currentFeedback === "up" ? "fill-current" : ""}`} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleThumb("down")}
-                  disabled={feedbackBusy}
-                  className={`inline-flex items-center px-2 py-0.5 rounded-md transition-colors disabled:opacity-50 ${
-                    currentFeedback === "down"
-                      ? "text-destructive bg-destructive/10"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                  title="Jawaban ini kurang membantu"
-                >
-                  <ThumbsDown className={`h-3 w-3 ${currentFeedback === "down" ? "fill-current" : ""}`} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setReportOpen(true)}
-                  disabled={feedbackBusy}
-                  className={`inline-flex items-center px-2 py-0.5 rounded-md transition-colors disabled:opacity-50 ${
-                    currentFeedback === "report"
-                      ? "text-destructive bg-destructive/10"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                  title="Laporkan pesan ini"
-                >
-                  <Flag className={`h-3 w-3 ${currentFeedback === "report" ? "fill-current" : ""}`} />
-                </button>
+                {(!currentFeedback || currentFeedback === "up") && (
+                  <button
+                    type="button"
+                    onClick={() => handleThumb("up")}
+                    disabled={feedbackBusy}
+                    className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md transition-colors disabled:opacity-50 ${
+                      currentFeedback === "up"
+                        ? "text-[hsl(var(--risk-safe))] bg-[hsl(var(--risk-safe))]/15 ring-1 ring-[hsl(var(--risk-safe))]/30 font-medium"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                    title={currentFeedback === "up" ? "Membantu (klik untuk membatalkan)" : "Jawaban ini membantu"}
+                  >
+                    <ThumbsUp className={`h-3 w-3 ${currentFeedback === "up" ? "fill-current" : ""}`} />
+                    {currentFeedback === "up" && <span>Membantu</span>}
+                  </button>
+                )}
+                {(!currentFeedback || currentFeedback === "down") && (
+                  <button
+                    type="button"
+                    onClick={() => handleThumb("down")}
+                    disabled={feedbackBusy}
+                    className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md transition-colors disabled:opacity-50 ${
+                      currentFeedback === "down"
+                        ? "text-destructive bg-destructive/15 ring-1 ring-destructive/30 font-medium"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                    title={currentFeedback === "down" ? "Kurang membantu (klik untuk membatalkan)" : "Jawaban ini kurang membantu"}
+                  >
+                    <ThumbsDown className={`h-3 w-3 ${currentFeedback === "down" ? "fill-current" : ""}`} />
+                    {currentFeedback === "down" && <span>Kurang membantu</span>}
+                  </button>
+                )}
+                {(!currentFeedback || currentFeedback === "report") && (
+                  <button
+                    type="button"
+                    onClick={() => setReportOpen(true)}
+                    disabled={feedbackBusy}
+                    className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md transition-colors disabled:opacity-50 ${
+                      currentFeedback === "report"
+                        ? "text-destructive bg-destructive/15 ring-1 ring-destructive/30 font-medium"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                    title={currentFeedback === "report" ? "Pesan telah dilaporkan" : "Laporkan pesan ini"}
+                  >
+                    <Flag className={`h-3 w-3 ${currentFeedback === "report" ? "fill-current" : ""}`} />
+                    {currentFeedback === "report" && <span>Dilaporkan</span>}
+                  </button>
+                )}
               </>
             )}
             {prevUserMsg && (
@@ -410,7 +422,7 @@ export function Message({ m }) {
                 title="Buat ulang jawaban ini"
               >
                 <RotateCw className={`h-3 w-3 ${regenerating ? "animate-spin" : ""}`} />
-                <span>{m.error ? "Coba lagi" : "Regenerate"}</span>
+                <span className="hidden sm:inline">{m.error ? "Coba lagi" : "Regenerate"}</span>
               </button>
             )}
           </div>
