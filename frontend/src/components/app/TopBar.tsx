@@ -1,8 +1,16 @@
 import React from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Gavel, RotateCcw, History, LogOut, UserPlus, Building2, User, SquarePen, Lock, KeyRound } from "lucide-react";
+import { Gavel, RotateCcw, History, LogOut, UserPlus, Building2, User, SquarePen, Lock, KeyRound, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { useSession } from "@/context/SessionContext";
 import { useAuth } from "@/context/AuthContext";
 import { useUI } from "@/context/UIContext";
@@ -120,25 +128,38 @@ export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome, onOpenUnlo
                 <History className="h-4 w-4" />
                 <span className="hidden sm:inline">Riwayat</span>
               </Button>
-              <span className="hidden max-w-[140px] truncate rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground md:inline-flex">
-                {user.name || user.email}
-              </span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button data-testid="change-password-button" variant="ghost" size="icon" onClick={onOpenChangePw}>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    data-testid="user-menu-button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 max-w-[180px]"
+                  >
+                    <User className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="hidden max-w-[110px] truncate sm:inline">{user.name || user.email}</span>
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
+                    {user.email}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem data-testid="change-password-button" onClick={onOpenChangePw}>
                     <KeyRound className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Ganti kata sandi (enkripsi ulang data pribadi)</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button data-testid="logout-button" variant="ghost" size="icon" onClick={logout}>
+                    Ganti kata sandi
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="logout-button"
+                    onClick={logout}
+                    className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  >
                     <LogOut className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Keluar</TooltipContent>
-              </Tooltip>
+                    Keluar
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           ) : (
             <Button data-testid="open-auth-button" size="sm" onClick={onOpenAuth} className="gap-2">
