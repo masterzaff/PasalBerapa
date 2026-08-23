@@ -148,6 +148,26 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
     toast.info(`Sensor tag ${tag} dihapus.`);
   };
 
+  // Helper to compute the next available numeric tag for an entity type,
+  // taking into account both simple tags (<PERSON_1>) and grouped variants (<PERSON_1a>, <PERSON_1b>).
+  const getNextEntityTag = (type: string) => {
+    const cleanType = (type || "CUSTOM").toUpperCase();
+    const usedNumbers = new Set<number>();
+
+    for (const tag of Object.keys(mapping)) {
+      const parsed = parseTag(tag);
+      if (parsed && parsed.type === cleanType) {
+        usedNumbers.add(parsed.num);
+      }
+    }
+
+    let nextIndex = 1;
+    while (usedNumbers.has(nextIndex) || Object.prototype.hasOwnProperty.call(mapping, `<${cleanType}_${nextIndex}>`)) {
+      nextIndex += 1;
+    }
+    return `<${cleanType}_${nextIndex}>`;
+  };
+
   // Add a new custom keyword to mask
   const handleAddCustom = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -161,12 +181,7 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
       return;
     }
 
-    // Index must be the next FREE one for this type — entries.length collides
-    // with an existing tag as soon as anything has been removed from the list.
-    const cleanType = (customType || "CUSTOM").toUpperCase();
-    let nextIndex = 1;
-    while (Object.prototype.hasOwnProperty.call(mapping, `<${cleanType}_${nextIndex}>`)) nextIndex += 1;
-    const newTag = `<${cleanType}_${nextIndex}>`;
+    const newTag = getNextEntityTag(customType);
 
     setMapping((prev) => ({
       ...prev,
@@ -232,10 +247,7 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
       return;
     }
 
-    const cleanType = (selectedTextType || "CUSTOM").toUpperCase();
-    let nextIndex = 1;
-    while (Object.prototype.hasOwnProperty.call(mapping, `<${cleanType}_${nextIndex}>`)) nextIndex += 1;
-    const newTag = `<${cleanType}_${nextIndex}>`;
+    const newTag = getNextEntityTag(selectedTextType);
 
     setMapping((prev) => ({
       ...prev,
