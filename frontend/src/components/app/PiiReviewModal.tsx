@@ -463,8 +463,9 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
               )}
             </div>
 
-            <p className="text-[11px] text-muted-foreground shrink-0">
-              💡 <strong>Tips Privasi</strong>: Nilai asli di atas hanya tersimpan di memori browser Anda dan <strong>tidak pernah dikirim ke LLM</strong>.
+            <p className="text-[11px] text-muted-foreground shrink-0 flex items-center gap-1.5">
+              <Lock className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+              <span>Data dienkripsi menggunakan kunci Anda — bahkan kami tidak dapat melihatnya.</span>
             </p>
           </TabsContent>
 
@@ -541,13 +542,10 @@ export default function PiiReviewModal({ open, onOpenChange }: PiiReviewModalPro
                 {renderMaskedPreview(liveMaskedText)}
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-[11px] text-muted-foreground shrink-0">
-              <span className="flex items-center gap-1.5">
-                <Lock className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                Ini adalah teks eksak yang akan dikirim ke LLM untuk proses analisis hukum.
-              </span>
-              <span className="text-[11px] text-emerald-600 font-medium">
-                💡 Sorot teks di atas untuk menambah sensor baru
+            <div className="flex items-center justify-end text-[11px] text-muted-foreground shrink-0">
+              <span className="text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+                <span>💡</span>
+                <span>Sorot teks di atas untuk menambah sensor baru</span>
               </span>
             </div>
           </TabsContent>
