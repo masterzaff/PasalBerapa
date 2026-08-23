@@ -11,6 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useDocumentUpload } from "@/hooks/useDocumentUpload";
 import { useUI } from "@/context/UIContext";
 import { navigateToChat } from "@/lib/navigation";
+import GuestLimitModal from "@/components/app/GuestLimitModal";
 
 const QUICK = [
   { mode: "risk", label: "Bedah Risiko", icon: ShieldAlert },
@@ -45,10 +46,15 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
   const [input, setInput] = useState("");
   const [focused, setFocused] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [guestLimitOpen, setGuestLimitOpen] = useState(false);
   const fileRef = useRef(null);
   const taRef = useRef(null);
   const disabled = analyzing || extracting;
   const hero = variant === "hero";
+
+  const isGuest = !user;
+  const userTurns = s.messages.filter((m) => m.role === "user").length;
+  const isGuestLimitReached = isGuest && userTurns >= 1;
 
   useEffect(() => {
     setMounted(true);
@@ -144,6 +150,10 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
   const send = async () => {
     const q = input.trim();
     if (!q || disabled) return;
+    if (isGuestLimitReached && !hero) {
+      setGuestLimitOpen(true);
+      return;
+    }
     setInput("");
     startFresh();
     try {
@@ -153,6 +163,10 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
 
   const quick = async (mode) => {
     if (disabled) return;
+    if (isGuestLimitReached) {
+      setGuestLimitOpen(true);
+      return;
+    }
     startFresh();
     try {
       await run({ mode });
@@ -178,6 +192,23 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
 
   return (
     <div className="w-full">
+      {/* Guest mode 1-turn limit warning banner */}
+      {isGuestLimitReached && !hero && (
+        <div className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-2 text-xs text-foreground animate-in fade-in duration-200">
+          <div className="flex items-center gap-1.5 font-medium">
+            <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span>Mode tamu dibatasi 1 pesan per percakapan.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setGuestLimitOpen(true)}
+            className="font-semibold text-primary hover:underline shrink-0"
+          >
+            Buat Akun Gratis &rarr;
+          </button>
+        </div>
+      )}
+
       {/* Quick Action Chips bila ada dokumen tapi belum pernah analisis */}
       {s.hasDocument && s.messages.length === 0 && (
         <div className="mb-2 flex flex-wrap gap-1.5">
@@ -197,12 +228,6 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
       )}
 
       <div className={`rounded-[1.4rem] border bg-card shadow-sm transition-shadow focus-within:shadow-md ${hero ? "p-2" : "p-1.5"}`}>
-        {/* Once a message has gone out, the document is already visible in
-            the "Dokumen" panel (sidebar) — showing it again here just to
-            offer a remove button that would blank the maskedText/piiMapping
-            follow-ups depend on (see maskQuestion/executeAnalysis) is both
-            redundant and a footgun. Only show the chip pre-send, when it's
-            a pending attachment the user may still want to cancel. */}
         {s.hasDocument && s.file && s.messages.length === 0 && (
           <div className="mx-1 mb-1 mt-1 flex items-center justify-between gap-2 rounded-lg bg-secondary px-2.5 py-1.5 text-xs">
             <div className="flex min-w-0 items-center gap-2">
@@ -247,6 +272,10 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
+                  if (isGuestLimitReached && !hero) {
+                    setGuestLimitOpen(true);
+                    return;
+                  }
                   send();
                 }
               }}
@@ -272,9 +301,6 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
             )}
           </div>
 
-          {/* While a run is in flight this is a STOP button, not a disabled
-              send — an agentic run with tool calls can block for up to a
-              minute and there was previously no way out of it. */}
           {analyzing ? (
             <Button
               type="button"
@@ -307,9 +333,9 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
       <div className="mt-2 px-1 text-center text-[11px] text-muted-foreground">
         {!user ? (
           <span>
-            Percakapan anonim — atau{" "}
+            Percakapan anonim (maks. 1 pesan) —{" "}
             <button onClick={onOpenAuth} className="font-semibold text-primary hover:underline" data-testid="composer-auth-link">
-              daftar buat simpan
+              daftar untuk lanjut tanpa batas
             </button>
           </span>
         ) : hero ? (
@@ -325,6 +351,12 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
         accept="application/pdf,.pdf,image/jpeg,image/png,image/webp,image/bmp,image/gif,.jpg,.jpeg,.png,.webp,.bmp,.gif"
         className="hidden"
         onChange={onFile}
+      />
+
+      <GuestLimitModal
+        open={guestLimitOpen}
+        onOpenChange={setGuestLimitOpen}
+        onOpenAuth={onOpenAuth || (() => {})}
       />
     </div>
   );

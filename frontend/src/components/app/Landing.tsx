@@ -114,48 +114,38 @@ const BUSINESS_SEGMENTS = [
 
 const PRICING_TIERS = [
   {
-    name: "Starter / Solo",
+    name: "Gratis",
     price: "Rp 0",
-    period: "Gratis selamanya",
-    desc: "Cocok untuk freelancer & solopreneur yang ingin review kontrak mandiri.",
+    period: "Akses Awal",
+    desc: "Akses penuh fitur audit kontrak, deteksi risiko red flags, dan konsultasi pasal hukum.",
     features: [
-      "3 review dokumen / bulan",
-      "Deteksi red flags & skor risiko",
-      "Client-side PII masking standar",
-      "Rujukan pasal & regulasi umum",
+      "Review & audit kontrak dokumen PDF",
+      "Deteksi red flags & kalkulasi skor risiko",
+      "Penyamaran PII 100% di browser (E2EE)",
+      "Rujukan pasal hukum & regulasi Indonesia",
+      "Mode percakapan & ringkasan otomatis",
     ],
-    cta: "Mulai Sekarang",
-    popular: false,
-  },
-  {
-    name: "Business Pro",
-    price: "Rp 299.000",
-    period: "per bulan / workspace",
-    desc: "Pilihan tepat untuk UMKM & Startup yang aktif menandatangani kontrak.",
-    features: [
-      "Unlimited review kontrak PDF",
-      "Ekspor ringkasan & rekomendasi redline",
-      "Batch comparison klausul berisiko",
-      "Riwayat analisis tersimpan aman",
-      "Prioritas latency AI Node",
-    ],
-    cta: "Coba Pro Gratis",
+    cta: "Mulai Gratis",
     popular: true,
+    comingSoon: false,
+    badge: "Akses Awal",
   },
   {
-    name: "Enterprise Private Node",
-    price: "Custom",
-    period: "On-Premise / Private Cloud",
-    desc: "Untuk korporat yang membutuhkan dedicated on-prem AI & kepatuhan mutlak.",
+    name: "Pro & Bisnis",
+    price: "Coming Soon",
+    period: "Paket Berlangganan",
+    desc: "Didesain untuk UMKM, startup, dan tim yang membutuhkan kolaborasi & fitur lanjutan.",
     features: [
-      "Docker deployment di VPC / Server sendiri",
-      "100% data isolasi tanpa internet eksternal",
-      "Custom Legal RAG Corpus korporat",
-      "Audit Trail & Single Sign-On (SSO)",
-      "SLA Dukungan Teknis 24/7",
+      "Percakapan multi-turn tanpa batas",
+      "Ekspor laporan PDF & rekomendasi redline",
+      "Workspace tim & manajemen kontrak",
+      "Prioritas latency AI Node & integrasi API",
+      "Dukungan custom peraturan internal",
     ],
-    cta: "Hubungi Tim Sales",
+    cta: "Segera Hadir",
     popular: false,
+    comingSoon: true,
+    badge: "Coming Soon",
   },
 ];
 
@@ -569,28 +559,36 @@ export default function Landing({ onOpenAuth }) {
                   Model Bisnis Transparan &amp; Terukur
                 </h2>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Mulai gratis untuk kebutuhan individu, atau berlangganan untuk skala bisnis dan korporat.
+                  Gunakan akses gratis saat ini. Paket berbayar dan fitur kolaborasi tim segera hadir.
                 </p>
               </div>
 
-              <div className="mt-10 grid gap-6 lg:grid-cols-3 items-stretch">
+              <div className="mt-10 grid gap-6 md:grid-cols-2 max-w-4xl mx-auto items-stretch">
                 {PRICING_TIERS.map((tier) => (
                   <div
                     key={tier.name}
                     className={`relative flex flex-col justify-between rounded-3xl border bg-card p-7 shadow-sm transition-all hover:shadow-lg ${
                       tier.popular ? "border-primary ring-2 ring-primary/20 shadow-md" : ""
-                    }`}
+                    } ${tier.comingSoon ? "bg-card/70" : ""}`}
                   >
-                    {tier.popular && (
-                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3.5 py-0.5 text-[11px] font-bold text-primary-foreground uppercase tracking-wider">
-                        Paling Populer
+                    {tier.badge && (
+                      <div
+                        className={`absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full px-3.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${
+                          tier.comingSoon
+                            ? "bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30"
+                            : "bg-primary text-primary-foreground shadow-sm"
+                        }`}
+                      >
+                        {tier.badge}
                       </div>
                     )}
                     <div>
                       <h3 className="font-display text-xl font-bold">{tier.name}</h3>
                       <p className="mt-1 text-xs text-muted-foreground">{tier.desc}</p>
                       <div className="mt-5 mb-4">
-                        <span className="font-display text-3xl font-extrabold text-foreground">{tier.price}</span>
+                        <span className={`font-display text-2xl sm:text-3xl font-extrabold ${tier.comingSoon ? "text-primary" : "text-foreground"}`}>
+                          {tier.price}
+                        </span>
                         <span className="ml-2 text-xs text-muted-foreground">{tier.period}</span>
                       </div>
                       <div className="my-5 h-px bg-border" />
@@ -604,16 +602,23 @@ export default function Landing({ onOpenAuth }) {
                       </ul>
                     </div>
                     <div className="mt-8">
-                      <button
-                        onClick={onOpenAuth}
-                        className={`w-full rounded-full py-2.5 text-xs font-semibold transition-all ${
-                          tier.popular
-                            ? "bg-primary text-primary-foreground hover:opacity-90 shadow-sm"
-                            : "border border-border bg-accent/40 text-accent-foreground hover:bg-accent"
-                        }`}
-                      >
-                        {tier.cta}
-                      </button>
+                      {tier.comingSoon ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="w-full rounded-full py-2.5 text-xs font-semibold border border-dashed border-border bg-muted/60 text-muted-foreground cursor-not-allowed"
+                        >
+                          {tier.cta}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                          className="w-full rounded-full py-2.5 text-xs font-semibold bg-primary text-primary-foreground hover:opacity-90 shadow-sm transition-all"
+                        >
+                          {tier.cta}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

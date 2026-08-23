@@ -220,6 +220,12 @@ export function AnalysisProvider({ children }) {
         // toast. The user's own turn stays so they can edit or retry from it.
         if (e.name === "AbortError") {
           toast.info("Analisis dibatalkan.");
+        } else if (e.message && (e.message.includes("Mode tamu") || e.message.includes("Buat akun"))) {
+          // Rollback optimistic user message
+          if (tempUserId) {
+            s.setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
+          }
+          toast.warning("Mode tamu dibatasi 1 pesan per percakapan. Silakan buat akun untuk melanjutkan.");
         } else {
           const errorMsg = {
             role: "assistant",
@@ -237,8 +243,8 @@ export function AnalysisProvider({ children }) {
               { id: "msg_" + Math.random().toString(36).slice(2, 9), ts: Date.now(), ...errorMsg },
             ]);
           }
+          if (!(e instanceof NotConfiguredError)) toast.error(e.message || "Analisis gagal.");
         }
-        if (!(e instanceof NotConfiguredError)) toast.error(e.message || "Analisis gagal.");
         throw e;
       } finally {
         abortRef.current = null;

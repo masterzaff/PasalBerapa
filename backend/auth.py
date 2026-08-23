@@ -477,6 +477,15 @@ async def send_message(
         )
         db.add(c)
 
+    # Mode tamu (unauthenticated): dibatasi 1 giliran (turn) per percakapan
+    if current is None:
+        user_turn_count = len([m for m in (c.messages or []) if m.get("role") == "user"])
+        if user_turn_count >= 1:
+            raise HTTPException(
+                status_code=403,
+                detail="Mode tamu dibatasi 1 pesan per percakapan. Buat akun untuk melanjutkan percakapan ini."
+            )
+
     try:
         messages = list(c.messages or [])
         user_msg = {
