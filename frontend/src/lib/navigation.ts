@@ -78,8 +78,14 @@ export function navigateToNewChat() {
 
 export function navigateToHome() {
   if (typeof window === "undefined") return;
-  if (window.location.hash) {
-    history.pushState("", document.title, window.location.pathname + window.location.search);
+  const isChatPath = window.location.pathname.startsWith("/chat");
+  if (isChatPath) {
+    window.location.href = "/";
+    return;
+  }
+  if (window.location.hash || window.location.search || window.location.pathname !== "/") {
+    window.history.pushState(null, "", "/");
     window.dispatchEvent(new HashChangeEvent("hashchange"));
+    window.dispatchEvent(new PopStateEvent("popstate"));
   }
 }

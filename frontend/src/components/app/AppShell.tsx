@@ -62,14 +62,14 @@ export default function AppShell({ sessionId: propId, isNewChat: propIsNew = fal
   const isExplicitNewChat = route.isNewChat;
 
   const started = hasDocument || messages.length > 0;
-  const isChat = Boolean(isExplicitNewChat || activeUrlId || (mounted && (started || restoring || !route.isHome)));
+  const isChat = Boolean(!route.isHome && (isExplicitNewChat || activeUrlId || restoring || started));
   const openAuth = () => setShowAuth(true);
   const openHistory = () => setShowHistory(true);
 
   // 1) Reflect the active session in the URL hash (e.g. #id=xxx) so refresh keeps the session on CDN
   useEffect(() => {
-    if (!mounted || !started || !sessionId) return;
-    if (route.isHome && !started) return;
+    if (!mounted || route.isHome) return;
+    if (!started || !sessionId) return;
     navigateToChat(sessionId);
   }, [mounted, started, sessionId, route.isHome]);
 
