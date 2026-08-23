@@ -8,29 +8,26 @@ const Ctx = createContext(null);
 
 export function AuthProvider({ children }) {
   const { resetSession } = useSession();
-  const [token, setToken] = useState(() => {
-    if (typeof window !== "undefined") {
-      try {
-        return localStorage.getItem(LS_TOKEN) || null;
-      } catch (_) {}
-    }
-    return null;
-  });
+  const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(() => {
-    if (typeof window !== "undefined") {
-      try {
-        return Boolean(localStorage.getItem(LS_TOKEN));
-      } catch (_) {}
-    }
-    return false;
-  });
+  const [loading, setLoading] = useState(true);
 
   // The AES key that decrypts PII mappings. Lives in sessionStorage only, so it
   // survives a refresh but not a browser restart — at which point the user is
   // still signed in but must unlock() before real values can be shown.
   // Declared above the effect below, which clears it on an invalid token.
-  const [encKey, setEncKey] = useState(() => (typeof window !== "undefined" ? loadEncKey() : null));
+  const [encKey, setEncKey] = useState(null);
+
+  useEffect(() => {
+    try {
+      const savedToken = localStorage.getItem(LS_TOKEN);
+      if (savedToken) setToken(savedToken);
+      else setLoading(false);
+      setEncKey(loadEncKey());
+    } catch (_) {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     let alive = true;

@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { FileText, Gauge, Lock, Bot, FileCheck2, Scale, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -45,7 +44,6 @@ export default function ChatView({ onOpenAuth }) {
   const { busy: analyzing, busyMode, busyMessageId } = useAnalysis();
   const ui = useUI();
   const { user, token } = useAuth();
-  const router = useRouter();
   const feedRef = useRef(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [renaming, setRenaming] = useState(false);

@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
 import { Loader2, Trash2, MessageSquareText, Clock, SquarePen } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -17,8 +16,6 @@ import { navigateToChat, navigateToNewChat } from "@/lib/navigation";
 export default function HistorySheet({ open, onOpenChange }) {
   const { token, encKey } = useAuth();
   const s = useSession();
-  const router = useRouter();
-  const pathname = usePathname();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);

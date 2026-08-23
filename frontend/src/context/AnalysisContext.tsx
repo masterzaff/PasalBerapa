@@ -24,7 +24,7 @@ function stripPageText(extractInfo) {
   const { pages, ...rest } = extractInfo;
   return {
     ...rest,
-    pages: Array.isArray(pages) ? pages.map(({ text, ...p }) => p) : [],
+    pages: Array.isArray(pages) ? pages.map(({ text: _text, ...p }) => p) : [],
   };
 }
 

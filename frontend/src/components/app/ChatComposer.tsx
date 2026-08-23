@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Paperclip, ArrowUp, X, Loader2, ShieldAlert, FileText, Sparkles, FileCheck2, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -42,8 +41,6 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
   const { user } = useAuth();
   const { uploadFile, progress, busy: extracting, cancel } = useDocumentUpload();
   const { audienceMode } = useUI();
-  const router = useRouter();
-  const pathname = usePathname();
   const [input, setInput] = useState("");
   const [focused, setFocused] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -130,23 +127,14 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
   }, [restoredQuestion, consumeRestoredQuestion]);
 
   const pickFile = () => fileRef.current && fileRef.current.click();
-  // Starting anything from "/" (or the not-yet-initialized "/chat/new") must
-  // begin a brand-new conversation — resetSession() first, then navigate
-  // using the id it returns. Without the reset, a leftover sessionId from a
-  // previous conversation (Landing doesn't clear SessionContext on its own)
-  // would silently absorb this new message/document into the old chat.
-  const startFresh = () => {
-    if (pathname === "/" || pathname === "/chat/new" || !window.location.hash || window.location.hash === "#new") {
-      const id = s.resetSession();
-      navigateToChat(id);
-    }
-  };
 
   const onFile = async (e) => {
     const f = e.target.files && e.target.files[0];
     e.target.value = "";
     if (f) {
-      startFresh();
+      if (hero) {
+        s.resetSession();
+      }
       await uploadFile(f);
     }
   };
@@ -165,7 +153,9 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
       return;
     }
     setInput("");
-    startFresh();
+    if (hero && s.sessionId) {
+      navigateToChat(s.sessionId);
+    }
     try {
       await run({ mode: "chat", question: q });
     } catch (_) {}
@@ -173,11 +163,13 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
 
   const quick = async (mode) => {
     if (disabled) return;
-    if (isGuestLimitReached) {
+    if (isGuestLimitReached && !hero) {
       setGuestLimitOpen(true);
       return;
     }
-    startFresh();
+    if (hero && s.sessionId) {
+      navigateToChat(s.sessionId);
+    }
     try {
       await run({ mode });
     } catch (_) {}

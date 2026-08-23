@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
-import { Bot, User, BookMarked, Copy, Check, Scale, ShieldAlert, Wrench, ChevronDown, RotateCw, Eye, Pencil, ThumbsUp, ThumbsDown, Flag } from "lucide-react";
+import { BookMarked, Copy, Check, Scale, Wrench, ChevronDown, RotateCw, Eye, Pencil, ThumbsUp, ThumbsDown, Flag } from "lucide-react";
 import { MODE_LABELS, useAnalysis } from "@/context/AnalysisContext";
 import { useSession } from "@/context/SessionContext";
 import { useAuth } from "@/context/AuthContext";
@@ -12,16 +12,16 @@ import ReportMessageModal from "@/components/app/ReportMessageModal";
 
 // Komponen markdown minimal — cukup buat gaya balasan LLM (bold, list, paragraf, link).
 const MARKDOWN_COMPONENTS = {
-  p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
-  strong: ({ node, ...props }) => <strong className="font-semibold text-foreground" {...props} />,
-  em: ({ node, ...props }) => <em {...props} />,
-  ul: ({ node, ...props }) => <ul className="mb-2 last:mb-0 list-disc pl-5 space-y-0.5" {...props} />,
-  ol: ({ node, ...props }) => <ol className="mb-2 last:mb-0 list-decimal pl-5 space-y-0.5" {...props} />,
-  li: ({ node, ...props }) => <li {...props} />,
-  a: ({ node, ...props }) => (
+  p: ({ ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+  strong: ({ ...props }) => <strong className="font-semibold text-foreground" {...props} />,
+  em: ({ ...props }) => <em {...props} />,
+  ul: ({ ...props }) => <ul className="mb-2 last:mb-0 list-disc pl-5 space-y-0.5" {...props} />,
+  ol: ({ ...props }) => <ol className="mb-2 last:mb-0 list-decimal pl-5 space-y-0.5" {...props} />,
+  li: ({ ...props }) => <li {...props} />,
+  a: ({ ...props }) => (
     <a className="text-primary underline underline-offset-2 hover:no-underline" target="_blank" rel="noreferrer" {...props} />
   ),
-  code: ({ node, ...props }) => <code className="rounded bg-muted px-1 py-0.5 text-[0.85em]" {...props} />,
+  code: ({ ...props }) => <code className="rounded bg-muted px-1 py-0.5 text-[0.85em]" {...props} />,
 };
 
 export function TypingBubble() {

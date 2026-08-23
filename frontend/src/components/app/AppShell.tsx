@@ -1,14 +1,13 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { usePathname } from "next/navigation";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { hydrateConversation } from "@/lib/conversation";
 import { useSession } from "@/context/SessionContext";
 import { useAuth } from "@/context/AuthContext";
 import { authApi } from "@/lib/authApi";
-import { parseRoute, navigateToChat, navigateToNewChat, navigateToHome, RouteState } from "@/lib/navigation";
+import { parseRoute, navigateToChat, navigateToHome, RouteState } from "@/lib/navigation";
 import TopBar from "@/components/app/TopBar";
 import Landing from "@/components/app/Landing";
 import ChatView from "@/components/app/ChatView";
@@ -26,7 +25,6 @@ interface AppShellProps {
 export default function AppShell({ sessionId: propId, isNewChat: propIsNew = false }: AppShellProps = {}) {
   const { hasDocument, messages, sessionId, convId, convVersion, loadConversation, resetSession, showPiiModal, setShowPiiModal } = useSession();
   const { token, encKey, loading: authLoading } = useAuth();
-  const pathname = usePathname();
 
   const [mounted, setMounted] = useState(false);
   const [route, setRoute] = useState<RouteState>({ sessionId: propId, isNewChat: propIsNew, isHome: !propId && !propIsNew });
@@ -39,12 +37,16 @@ export default function AppShell({ sessionId: propId, isNewChat: propIsNew = fal
   // Sync route from URL / hash
   const updateRoute = useCallback(() => {
     const r = parseRoute();
+    const isHome = r.isHome && !propId && !propIsNew;
+    if (isHome) {
+      resetSession();
+    }
     setRoute({
       sessionId: r.sessionId || propId,
       isNewChat: r.isNewChat || propIsNew,
-      isHome: r.isHome && !propId && !propIsNew,
+      isHome,
     });
-  }, [propId, propIsNew]);
+  }, [propId, propIsNew, resetSession]);
 
   useEffect(() => {
     setMounted(true);
@@ -116,6 +118,7 @@ export default function AppShell({ sessionId: propId, isNewChat: propIsNew = fal
   }, [mounted, activeUrlId, isExplicitNewChat, sessionId, convId, token, encKey, authLoading, loadConversation]);
 
   const handleGoHome = () => {
+    resetSession();
     navigateToHome();
     setRoute({ sessionId: undefined, isNewChat: false, isHome: true });
   };
@@ -130,7 +133,7 @@ export default function AppShell({ sessionId: propId, isNewChat: propIsNew = fal
         onOpenChangePw={() => setShowChangePw(true)}
       />
       <main className="flex min-h-0 flex-1 flex-col">
-        {isChat ? (
+        {mounted && isChat ? (
           <ChatView onOpenAuth={openAuth} onOpenHistory={openHistory} />
         ) : (
           <Landing onOpenAuth={openAuth} />

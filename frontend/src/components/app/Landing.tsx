@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Briefcase, Building2, Check, CheckCircle2, ChevronDown, Clock, Coins, FileLock2, FileSpreadsheet, Home, Loader2, Lock, ScanText, Server, Shield, Sparkles, TriangleAlert, UploadCloud, Users } from "lucide-react";
+import { ArrowRight, Briefcase, Building2, Check, CheckCircle2, ChevronDown, Clock, Coins, FileLock2, FileSpreadsheet, Heart, Home, Loader2, Lock, ScanText, Server, Shield, Sparkles, TriangleAlert, UploadCloud, Users } from "lucide-react";
 import { toast } from "sonner";
 import ChatComposer from "@/components/app/ChatComposer";
 import GlitchingTagChip from "@/components/app/landing/GlitchingTagChip";
@@ -181,7 +180,6 @@ export default function Landing({ onOpenAuth }) {
   const { uploadFile, busy, progress } = useDocumentUpload();
   const { audienceMode } = useUI();
   const { resetSession } = useSession();
-  const router = useRouter();
   const [dragging, setDragging] = useState(false);
   const [seed, setSeed] = useState(null);
   const depth = useRef(0);
@@ -705,6 +703,33 @@ export default function Landing({ onOpenAuth }) {
           </section>
         </>
       )}
+
+      {/* FOOTER */}
+      <footer className="border-t py-6 text-center text-xs text-muted-foreground">
+        <div className="mx-auto flex flex-wrap items-center justify-center gap-1.5 px-4">
+          <span>Made with</span>
+          <Heart className="h-3.5 w-3.5 fill-red-500 text-red-500 inline-block align-middle" />
+          <span>by</span>
+          <a
+            href="https://fhi.me"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-4 transition-colors hover:text-primary hover:decoration-primary"
+          >
+            masterzaff
+          </a>
+          <span className="mx-1">&middot;</span>
+          <span>legal API powered by</span>
+          <a
+            href="https://pasal.id"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-4 transition-colors hover:text-primary hover:decoration-primary"
+          >
+            pasal.id
+          </a>
+        </div>
+      </footer>
     </div>
   );
 }

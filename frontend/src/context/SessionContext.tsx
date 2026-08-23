@@ -123,7 +123,7 @@ export function SessionProvider({ children }) {
       }
     } catch (_) {}
   }, [
-    sessionId, file, rawText, extractInfo, maskedText, piiMapping,
+    initialized, sessionId, file, rawText, extractInfo, maskedText, piiMapping,
     piiConfirmed, messages, feedback, risks, riskScore, citations, convId, convTitle, convVersion,
   ]);
 

@@ -1,6 +1,6 @@
-import React from "react";
-import { useRouter, usePathname } from "next/navigation";
-import { Gavel, RotateCcw, History, LogOut, UserPlus, Building2, User, SquarePen, Lock, KeyRound, ChevronDown } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import { Gavel, History, LogOut, UserPlus, Building2, User, SquarePen, Lock, KeyRound, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -21,19 +21,24 @@ export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome, onOpenUnlo
   const { resetSession, hasDocument, messages } = useSession();
   const { user, logout, encKey } = useAuth();
   const { audienceMode, setAudienceMode } = useUI();
-  const router = useRouter();
   const pathname = usePathname();
 
-  const isSessionActive = hasDocument || messages.length > 0;
-  const isHashActive = typeof window !== "undefined" && Boolean(window.location.hash && window.location.hash !== "#new" && window.location.hash !== "#");
-  const isChatPage = pathname?.startsWith("/chat");
-  const isNewChatPage = pathname === "/chat/new" || (typeof window !== "undefined" && window.location.hash === "#new");
-  const showNewChatButton = isSessionActive || isHashActive || (isChatPage && !isNewChatPage);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  // The logo is navigation, not a reset — wiping an in-progress conversation
-  // just because someone clicked the wordmark is silent data loss. Use "Chat
-  // baru" to actually start over.
-  const goHome = onGoHome || (() => navigateToHome());
+  const isSessionActive = mounted && (hasDocument || messages.length > 0);
+  const isHashActive = mounted && Boolean(typeof window !== "undefined" && window.location.hash && window.location.hash !== "#new" && window.location.hash !== "#");
+  const isChatPage = pathname?.startsWith("/chat");
+  const isNewChatPage = pathname === "/chat/new" || (mounted && typeof window !== "undefined" && window.location.hash === "#new");
+  const showNewChatButton = mounted && (isSessionActive || isHashActive || (isChatPage && !isNewChatPage));
+  const showModeSwitch = mounted ? (!isChatPage && !isSessionActive) : (!isChatPage);
+
+  const goHome = onGoHome || (() => {
+    resetSession();
+    navigateToHome();
+  });
 
   const startNewChat = () => {
     resetSession();
@@ -60,7 +65,7 @@ export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome, onOpenUnlo
 
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Mode Switch: Bisnis <> Personal (Hanya tampil di Landing page) */}
-          {!isChatPage && !isSessionActive && (
+          {showModeSwitch && (
             <div className="flex items-center rounded-full border bg-muted/60 p-0.5 text-xs font-medium" data-testid="mode-toggle-group">
               <button
                 type="button"
