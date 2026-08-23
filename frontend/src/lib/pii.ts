@@ -60,6 +60,41 @@ export function unmaskMessages(messages, mapping) {
   }));
 }
 
+// Same boundary pattern as remaskMessages/unmaskMessages, for the risk
+// dashboard and top-level citations — they're now persisted server-side
+// too, at the same trust level as message content.
+export function remaskRisks(risks, mapping) {
+  if (!Array.isArray(risks)) return [];
+  return risks.map((r) => ({
+    ...r,
+    title: remaskText(r.title || "", mapping),
+    explanation: remaskText(r.explanation || "", mapping),
+    suggestion: remaskText(r.suggestion || "", mapping),
+    source_excerpt: remaskText(r.source_excerpt || "", mapping),
+  }));
+}
+
+export function unmaskRisks(risks, mapping) {
+  if (!Array.isArray(risks)) return [];
+  return risks.map((r) => ({
+    ...r,
+    title: unmaskText(r.title || "", mapping),
+    explanation: unmaskText(r.explanation || "", mapping),
+    suggestion: unmaskText(r.suggestion || "", mapping),
+    source_excerpt: unmaskText(r.source_excerpt || "", mapping),
+  }));
+}
+
+export function remaskCitations(citations, mapping) {
+  if (!Array.isArray(citations)) return [];
+  return citations.map((c) => ({ ...c, snippet: remaskText(c.snippet || "", mapping) }));
+}
+
+export function unmaskCitations(citations, mapping) {
+  if (!Array.isArray(citations)) return [];
+  return citations.map((c) => ({ ...c, snippet: unmaskText(c.snippet || "", mapping) }));
+}
+
 // Human label for a tag type, e.g. "PERSON" -> "Nama".
 export function tagTypeLabel(type) {
   const map = {

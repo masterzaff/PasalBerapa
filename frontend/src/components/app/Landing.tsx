@@ -189,7 +189,7 @@ const EXAMPLES = [
 export default function Landing({ onOpenAuth }) {
   const { uploadFile, busy, progress } = useDocumentUpload();
   const { audienceMode } = useUI();
-  const { sessionId } = useSession();
+  const { resetSession } = useSession();
   const router = useRouter();
   const [dragging, setDragging] = useState(false);
   const [seed, setSeed] = useState(null);
@@ -198,13 +198,20 @@ export default function Landing({ onOpenAuth }) {
   // A successful upload has to take you into the chat. Dropping a PDF (or
   // clicking a sample) used to load it silently and leave you on the landing
   // page, with the only hint being a chip in the composer.
+  //
+  // resetSession() FIRST, always: Landing is reachable while a previous
+  // conversation is still sitting in SessionContext (going "home" doesn't
+  // clear it), so without this a sample/dropped PDF would attach itself to
+  // whatever stale sessionId/convId/messages were left over and silently
+  // append onto that old conversation instead of starting a new one.
   const ingest = useCallback(
     async (f) => {
+      const id = resetSession();
       const ok = await uploadFile(f);
-      if (ok) router.push(`/chat/${sessionId}`);
+      if (ok) router.push(`/chat/${id}`);
       return ok;
     },
-    [uploadFile, router, sessionId]
+    [uploadFile, router, resetSession]
   );
 
   const isBisnis = audienceMode === "bisnis";

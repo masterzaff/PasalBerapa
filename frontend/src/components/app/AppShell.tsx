@@ -23,7 +23,7 @@ interface AppShellProps {
 }
 
 export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShellProps = {}) {
-  const { hasDocument, messages, sessionId, loadConversation, showPiiModal, setShowPiiModal } = useSession();
+  const { hasDocument, messages, sessionId, convVersion, loadConversation, showPiiModal, setShowPiiModal } = useSession();
   const { token, encKey, loading: authLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -55,31 +55,45 @@ export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShe
     }
   }, [mounted, started, sessionId, pathname, router]);
 
-  // 2) If /chat/:id doesn't match what's in memory, restore that conversation
-  //    from the DB. Keyed on the URL id (not a one-shot ref) so navigating
-  //    between two saved conversations restores each one — and comparing
-  //    against sessionId rather than `started` means a deep link no longer
-  //    silently shows whatever stale session sessionStorage happened to hold.
+  // 2) The server is the source of truth for a saved conversation, not
+  //    sessionStorage — so fetch on every /chat/:id mount, not only when the
+  //    local sessionId doesn't match. Keyed on the URL id (via triedRef, once
+  //    per mount) so navigating between two saved conversations restores each.
+  //
+  //    When the local sessionId already matches urlId (e.g. sessionStorage
+  //    already holds this conversation), paint from that instantly — no
+  //    restoring spinner, no redirect if the fetch fails — and reconcile in
+  //    the background: apply the fetch only if the server isn't behind what
+  //    we already have. A just-finished autosave bumps convVersionRef
+  //    immediately, so this can't clobber our own write; it picks up another
+  //    tab/device's edits and backfills risks/citations an older local
+  //    snapshot never had.
+  const convVersionRef = useRef(convVersion);
+  useEffect(() => { convVersionRef.current = convVersion; }, [convVersion]);
+
   const triedRef = useRef(null);
   useEffect(() => {
     if (!mounted || !urlId || urlId === "new" || isNewChat || authLoading) return;
     if (!sessionId) return; // session state not hydrated yet
-    if (sessionId === urlId || triedRef.current === urlId) return;
+    if (triedRef.current === urlId) return;
     triedRef.current = urlId;
+    const isFreshLoad = sessionId !== urlId;
     if (!token) {
-      router.replace("/");
-      return;
+      if (isFreshLoad) router.replace("/");
+      return; // logged out: nothing server-side to reconcile with
     }
-    setRestoring(true);
+    if (isFreshLoad) setRestoring(true);
     authApi
       .getConversation(urlId, token)
       .then(async (d) => {
+        const serverVersion = typeof d.version === "number" ? d.version : 0;
+        if (!isFreshLoad && serverVersion < convVersionRef.current) return;
         const h = await hydrateConversation(d, encKey);
         loadConversation({ ...h, id: urlId });
         if (h.locked) toast.info("Data pribadi terkunci — masukkan kata sandi untuk membukanya.");
       })
-      .catch(() => router.replace("/"))
-      .finally(() => setRestoring(false));
+      .catch(() => { if (isFreshLoad) router.replace("/"); })
+      .finally(() => { if (isFreshLoad) setRestoring(false); });
   }, [mounted, urlId, isNewChat, sessionId, token, encKey, authLoading, router, loadConversation]);
 
   const goHome = () => {

@@ -26,8 +26,21 @@ import { useAnalysis, MODE_LABELS } from "@/context/AnalysisContext";
 import { useUI } from "@/context/UIContext";
 import { useAuth } from "@/context/AuthContext";
 import { authApi } from "@/lib/authApi";
-import { remaskMessages, remaskText } from "@/lib/pii";
+import { remaskMessages, remaskText, remaskRisks, remaskCitations } from "@/lib/pii";
 import { encryptMapping } from "@/lib/crypto";
+
+// extractInfo.pages[].text is the raw/OCR'd document text — unmasked PII that
+// must never reach the server. Everything else (page number, whether OCR ran,
+// char count) is just metadata, kept so a resumed conversation still shows
+// its "N hlm · OCR" badge.
+function stripPageText(extractInfo) {
+  if (!extractInfo) return null;
+  const { pages, ...rest } = extractInfo;
+  return {
+    ...rest,
+    pages: Array.isArray(pages) ? pages.map(({ text, ...p }) => p) : [],
+  };
+}
 
 function PanelButton({ onClick, icon: Icon, label, count, testId }) {
   return (
@@ -93,11 +106,15 @@ export default function ChatView({ onOpenAuth }) {
           s.file?.name ||
           (firstUserMsg && firstUserMsg.content ? firstUserMsg.content.slice(0, 60) : "Percakapan");
         // Mask at the boundary: React state holds real values for display, but
-        // nothing readable may reach the server. debugMessages is a full copy of
-        // the LLM request per reply — useful live, not worth persisting.
-        const stripped = s.messages.map(({ debugMessages, ...rest }) => rest);
+        // nothing readable may reach the server. debugMessages/sentMasked/
+        // receivedRaw are live-inspection-only copies of the LLM turn — useful
+        // on screen, not worth persisting (reconstructable from `content`).
+        const stripped = s.messages.map(({ debugMessages, sentMasked, receivedRaw, ...rest }) => rest);
         const persistMessages = remaskMessages(stripped, s.piiMapping);
         const maskedText = s.maskedText || remaskText(s.rawText || "", s.piiMapping);
+        const risks = remaskRisks(s.risks, s.piiMapping);
+        const citations = remaskCitations(s.citations, s.piiMapping);
+        const docMeta = stripPageText(s.extractInfo);
         // Encrypted client-side; the server stores an opaque blob. Without a
         // key (locked session) we simply don't touch what's already stored.
         const mappingEnc = encKey
@@ -114,6 +131,10 @@ export default function ChatView({ onOpenAuth }) {
               messages: persistMessages,
               masked_text: maskedText,
               pii_mapping_enc: mappingEnc,
+              risks,
+              risk_score: s.riskScore,
+              citations,
+              doc_meta: docMeta,
             },
             token
           );
@@ -126,6 +147,10 @@ export default function ChatView({ onOpenAuth }) {
               doc_name: s.file?.name || null,
               masked_text: maskedText,
               pii_mapping_enc: mappingEnc,
+              risks,
+              risk_score: s.riskScore,
+              citations,
+              doc_meta: docMeta,
             },
             token
           );
@@ -150,6 +175,7 @@ export default function ChatView({ onOpenAuth }) {
       }
     },
     [user, s.messages, s.file, s.piiMapping, s.maskedText, s.rawText, s.sessionId,
+     s.risks, s.riskScore, s.citations, s.extractInfo,
      encKey, convId, convTitle, convVersion, token, firstUserMsg, setConvId, setConvTitle, setConvVersion]
   );
 

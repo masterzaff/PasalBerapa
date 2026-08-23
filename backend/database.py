@@ -66,6 +66,17 @@ class Conversation(Base):
     messages: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     # base64(iv ‖ AES-GCM ciphertext), encrypted client-side. Opaque here.
     pii_mapping_enc: Mapped[str] = mapped_column(Text, nullable=True)
+    # Risk dashboard + citations from the last analysis. Same trust level as
+    # `messages` (masked/tag-form free text) — client remasks before sending,
+    # unmasks after loading, same as message content.
+    risks: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    risk_score: Mapped[int] = mapped_column(Integer, nullable=True)
+    citations: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    # Upload metadata only (page count, whether OCR ran, per-page OCR flags) —
+    # no page text. The raw/OCR'd document text itself is never persisted;
+    # this just lets a resumed conversation show the same "N hlm · OCR" badge
+    # it had live, without carrying any document content server-side.
+    doc_meta: Mapped[dict] = mapped_column(JSONB, nullable=True)
     # Optimistic concurrency. Autosave writes the WHOLE conversation, so two
     # tabs open on the same one used to overwrite each other silently, newest
     # write winning and the other tab's turns vanishing on next reload.
@@ -149,6 +160,10 @@ async def init_db():
                 "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS masked_text TEXT",
                 "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS pii_mapping_enc TEXT",
                 "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS risks JSONB NOT NULL DEFAULT '[]'::jsonb",
+                "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS risk_score INTEGER",
+                "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS citations JSONB NOT NULL DEFAULT '[]'::jsonb",
+                "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS doc_meta JSONB",
             ):
                 await conn.execute(text(ddl))
             await _drop_plaintext_pii(conn)

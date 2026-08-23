@@ -135,6 +135,12 @@ export function AnalysisProvider({ children }) {
           citations,
           actions: data.actions || [],
           debugMessages: data.debug?.llm_messages || [],
+          // What actually left/entered the browser for this turn — masked
+          // question sent, raw masked reply received — for the "Pesan Asli"
+          // transparency view. Distinct from debugMessages (the full
+          // system/tool LLM conversation, dev-facing).
+          sentMasked: maskedQuestion || "",
+          receivedRaw: replyRaw,
         };
         if (regenerateMessageId) {
           s.setMessages((prev) =>

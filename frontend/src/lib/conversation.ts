@@ -1,5 +1,5 @@
 import { decryptMapping } from "@/lib/crypto";
-import { unmaskMessages } from "@/lib/pii";
+import { unmaskMessages, unmaskRisks, unmaskCitations } from "@/lib/pii";
 
 /**
  * Turn a stored conversation back into session state.
@@ -24,6 +24,10 @@ export async function hydrateConversation(d, encKey) {
     messages: unmaskMessages(d.messages || [], mapping || {}),
     maskedText: d.masked_text || "",
     piiMapping: mapping || {},
+    risks: unmaskRisks(d.risks || [], mapping || {}),
+    riskScore: typeof d.risk_score === "number" ? d.risk_score : null,
+    citations: unmaskCitations(d.citations || [], mapping || {}),
+    extractInfo: d.doc_meta || null,
     version: typeof d.version === "number" ? d.version : 0,
     locked: hasSecrets && !mapping,
   };

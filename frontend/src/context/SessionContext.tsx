@@ -139,20 +139,29 @@ export function SessionProvider({ children }) {
     setHighlightExcerpt(null);
   }, []);
 
+  // Returns the fresh id synchronously (state updates are async) so callers
+  // that immediately navigate to /chat/:id — Landing's sample/drag-drop
+  // upload, ChatComposer's first message from "/" — get the NEW id rather
+  // than whatever sessionId was still in this closure from before the reset.
   const resetSession = useCallback(() => {
     try { sessionStorage.removeItem(SS_KEY); } catch (_) {}
     persistRef.current = false;
-    setSessionId(newSessionId());
+    const id = newSessionId();
+    setSessionId(id);
     resetDocument();
     setMessages([]);
     setConvId(null);
     setConvTitle(null);
     setConvVersion(0);
+    return id;
   }, [resetDocument]);
 
   // Load a saved conversation (from history/DB) into the active session.
   // Keeps the given id so the URL /chat/:id stays stable across refresh.
-  const loadConversation = useCallback(({ id, messages: msgs, docName, title, piiMapping, maskedText, version } = {}) => {
+  const loadConversation = useCallback(({
+    id, messages: msgs, docName, title, piiMapping, maskedText, version,
+    risks: loadedRisks, riskScore: loadedRiskScore, citations: loadedCitations, extractInfo: loadedExtractInfo,
+  } = {}) => {
     setSessionId(id || newSessionId());
     resetDocument();
     // The RAW document is never persisted (it is the unmasked original), but the
@@ -165,6 +174,12 @@ export function SessionProvider({ children }) {
     // there is no raw text left to review — don't re-prompt on an empty doc.
     setPiiConfirmed(true);
     setMessages(Array.isArray(msgs) ? msgs : []);
+    setRisks(Array.isArray(loadedRisks) ? loadedRisks : []);
+    setRiskScore(typeof loadedRiskScore === "number" ? loadedRiskScore : null);
+    setCitations(Array.isArray(loadedCitations) ? loadedCitations : []);
+    // Page-count/OCR metadata only (no page text — that's unmasked document
+    // content and is never persisted), so this is safe to restore as-is.
+    setExtractInfo(loadedExtractInfo && typeof loadedExtractInfo === "object" ? loadedExtractInfo : null);
     setConvId(id || null);
     setConvTitle(title || null);
     setConvVersion(typeof version === "number" ? version : 0);

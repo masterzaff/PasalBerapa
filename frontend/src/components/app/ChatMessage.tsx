@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
-import { Bot, User, BookMarked, Copy, Check, Scale, ShieldAlert, Wrench, ChevronDown, Bug, RotateCw } from "lucide-react";
+import { Bot, User, BookMarked, Copy, Check, Scale, ShieldAlert, Wrench, ChevronDown, Bug, RotateCw, Eye } from "lucide-react";
 import { MODE_LABELS, useAnalysis } from "@/context/AnalysisContext";
 import { useSession } from "@/context/SessionContext";
 import { toast } from "sonner";
 import DebugRequestModal from "@/components/app/DebugRequestModal";
+import OriginalMessageModal from "@/components/app/OriginalMessageModal";
 
 // Komponen markdown minimal — cukup buat gaya balasan LLM (bold, list, paragraf, link).
 const MARKDOWN_COMPONENTS = {
@@ -40,7 +41,9 @@ export function Message({ m }) {
   const isUser = m.role === "user";
   const [copied, setCopied] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [citationsOpen, setCitationsOpen] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
+  const [originalOpen, setOriginalOpen] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const s = useSession();
   const { run, busy: analyzing } = useAnalysis();
@@ -126,31 +129,38 @@ export function Message({ m }) {
 
           {/* Citations / Legal references */}
           {Array.isArray(m.citations) && m.citations.length > 0 && (
-            <div className="mt-3 pt-3 border-t space-y-1.5">
-              <div className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
+            <div className="mt-3 pt-3 border-t">
+              <button
+                type="button"
+                onClick={() => setCitationsOpen((o) => !o)}
+                className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
                 <BookMarked className="h-3.5 w-3.5 text-primary" />
-                <span>Rujukan Pasal &amp; Regulasi:</span>
-              </div>
-              <div className="grid gap-1.5 sm:grid-cols-2">
-                {m.citations.map((c, i) => (
-                  <a
-                    key={i}
-                    href={c.url || undefined}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex flex-col rounded-lg border bg-background/80 p-2 text-left text-xs transition-colors hover:border-primary hover:bg-accent/40"
-                  >
-                    <span className="font-semibold text-primary">
-                      {c.regulation} {c.article}
-                    </span>
-                    {c.snippet && (
-                      <span className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
-                        {c.snippet}
+                <span>{m.citations.length} rujukan pasal &amp; regulasi</span>
+                <ChevronDown className={`h-3 w-3 transition-transform ${citationsOpen ? "rotate-180" : ""}`} />
+              </button>
+              {citationsOpen && (
+                <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                  {m.citations.map((c, i) => (
+                    <a
+                      key={i}
+                      href={c.url || undefined}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex flex-col rounded-lg border bg-background/80 p-2 text-left text-xs transition-colors hover:border-primary hover:bg-accent/40"
+                    >
+                      <span className="font-semibold text-primary">
+                        {c.regulation} {c.article}
                       </span>
-                    )}
-                  </a>
-                ))}
-              </div>
+                      {c.snippet && (
+                        <span className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+                          {c.snippet}
+                        </span>
+                      )}
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -203,6 +213,15 @@ export function Message({ m }) {
               </button>
               <button
                 type="button"
+                onClick={() => setOriginalOpen(true)}
+                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors"
+                title="Lihat pesan asli yang dikirim/diterima"
+              >
+                <Eye className="h-3 w-3" />
+                <span>Pesan Asli</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setDebugOpen(true)}
                 className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors"
                 title="Lihat request ke LLM"
@@ -228,6 +247,12 @@ export function Message({ m }) {
       </div>
 
       <DebugRequestModal open={debugOpen} onOpenChange={setDebugOpen} messages={m.debugMessages || []} />
+      <OriginalMessageModal
+        open={originalOpen}
+        onOpenChange={setOriginalOpen}
+        sentMasked={m.sentMasked}
+        receivedRaw={m.receivedRaw}
+      />
     </motion.div>
   );
 }

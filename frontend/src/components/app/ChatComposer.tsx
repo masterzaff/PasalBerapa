@@ -113,13 +113,23 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
   }, [restoredQuestion, consumeRestoredQuestion]);
 
   const pickFile = () => fileRef.current && fileRef.current.click();
+  // Starting anything from "/" (or the not-yet-initialized "/chat/new") must
+  // begin a brand-new conversation — resetSession() first, then navigate
+  // using the id it returns. Without the reset, a leftover sessionId from a
+  // previous conversation (Landing doesn't clear SessionContext on its own)
+  // would silently absorb this new message/document into the old chat.
+  const startFresh = () => {
+    if (pathname === "/" || pathname === "/chat/new") {
+      const id = s.resetSession();
+      router.push(`/chat/${id}`);
+    }
+  };
+
   const onFile = async (e) => {
     const f = e.target.files && e.target.files[0];
     e.target.value = "";
     if (f) {
-      if (pathname === "/" || pathname === "/chat/new") {
-        router.push(`/chat/${s.sessionId}`);
-      }
+      startFresh();
       await uploadFile(f);
     }
   };
@@ -134,9 +144,7 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
     const q = input.trim();
     if (!q || disabled) return;
     setInput("");
-    if (pathname === "/" || pathname === "/chat/new") {
-      router.push(`/chat/${s.sessionId}`);
-    }
+    startFresh();
     try {
       await run({ mode: "chat", question: q });
     } catch (_) {}
@@ -144,9 +152,7 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
 
   const quick = async (mode) => {
     if (disabled) return;
-    if (pathname === "/" || pathname === "/chat/new") {
-      router.push(`/chat/${s.sessionId}`);
-    }
+    startFresh();
     try {
       await run({ mode });
     } catch (_) {}

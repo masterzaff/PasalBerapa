@@ -73,6 +73,12 @@ class ConversationIn(BaseModel):
     masked_text: Optional[str] = None
     # base64(iv ‖ AES-GCM ciphertext). Opaque to the server, by design.
     pii_mapping_enc: Optional[str] = None
+    # Masked/tag-form, same as messages — client remasks before sending.
+    risks: Optional[List[Dict[str, Any]]] = None
+    risk_score: Optional[int] = None
+    citations: Optional[List[Dict[str, Any]]] = None
+    # Page count / OCR flags only, no document text. See database.py.
+    doc_meta: Optional[Dict[str, Any]] = None
 
 
 class ConversationUpdate(BaseModel):
@@ -81,6 +87,10 @@ class ConversationUpdate(BaseModel):
     messages: Optional[List[Dict[str, Any]]] = None
     masked_text: Optional[str] = None
     pii_mapping_enc: Optional[str] = None
+    risks: Optional[List[Dict[str, Any]]] = None
+    risk_score: Optional[int] = None
+    citations: Optional[List[Dict[str, Any]]] = None
+    doc_meta: Optional[Dict[str, Any]] = None
 
 
 # ---------- Helpers ----------
@@ -349,6 +359,14 @@ async def save_or_upsert_conversation(
                     existing.masked_text = body.masked_text
                 if body.pii_mapping_enc is not None:
                     existing.pii_mapping_enc = body.pii_mapping_enc
+                if body.risks is not None:
+                    existing.risks = body.risks
+                if body.risk_score is not None:
+                    existing.risk_score = body.risk_score
+                if body.citations is not None:
+                    existing.citations = body.citations
+                if body.doc_meta is not None:
+                    existing.doc_meta = body.doc_meta
                 if body.doc_name:
                     existing.doc_name = body.doc_name
                 existing.updated_at = now
@@ -370,6 +388,10 @@ async def save_or_upsert_conversation(
             messages=body.messages,
             masked_text=body.masked_text,
             pii_mapping_enc=body.pii_mapping_enc,
+            risks=body.risks or [],
+            risk_score=body.risk_score,
+            citations=body.citations or [],
+            doc_meta=body.doc_meta,
             created_at=now,
             updated_at=now
         )
@@ -408,6 +430,10 @@ async def get_conversation(
         "messages": c.messages or [],
         "masked_text": c.masked_text or "",
         "pii_mapping_enc": c.pii_mapping_enc or None,
+        "risks": c.risks or [],
+        "risk_score": c.risk_score,
+        "citations": c.citations or [],
+        "doc_meta": c.doc_meta or None,
         "version": c.version or 0,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
     }
@@ -445,6 +471,14 @@ async def update_conversation(
             c.masked_text = body.masked_text
         if body.pii_mapping_enc is not None:
             c.pii_mapping_enc = body.pii_mapping_enc
+        if body.risks is not None:
+            c.risks = body.risks
+        if body.risk_score is not None:
+            c.risk_score = body.risk_score
+        if body.citations is not None:
+            c.citations = body.citations
+        if body.doc_meta is not None:
+            c.doc_meta = body.doc_meta
         c.updated_at = datetime.now(timezone.utc)
         c.version = (c.version or 0) + 1
 
