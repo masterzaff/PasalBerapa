@@ -47,6 +47,10 @@ app.add_middleware(
 class MaskReq(BaseModel):
     text: str
     session_id: Optional[str] = None
+    # Mapping yang sudah berjalan di sesi ini. Dikirim saat menyensor pertanyaan
+    # chat supaya nilai yang sudah punya tag memakai tag yang sama dan penomoran
+    # tag baru menyambung — bukan mengulang dari _1 dan bertabrakan dgn dokumen.
+    known_mapping: Optional[Dict[str, str]] = None
 
 
 class SearchReq(BaseModel):
@@ -81,8 +85,22 @@ async def health():
 
 @app.post("/mask")
 async def mask(req: MaskReq):
-    masked_text, mapping, entities = masker.mask_text(req.text or "")
-    return {"masked_text": masked_text, "mapping": mapping, "entities": entities}
+    """Redaksi PII.
+
+    PENTING — JANGAN PERNAH me-log `req.text`, `mapping`, atau `entities`.
+    Endpoint ini menerima dokumen MENTAH (nama, NIK, alamat asli): node memang
+    harus membacanya untuk bisa menyensor, dan itu satu-satunya titik di sistem
+    yang melihat PII apa adanya. Selebihnya — DB, LLM, log — tidak boleh. Menulis
+    isinya ke log akan diam-diam membatalkan seluruh desain privasi ini.
+    """
+    masked_text, mapping, new_entities = masker.mask_text(
+        req.text or "", known_mapping=req.known_mapping
+    )
+    return {
+        "masked_text": masked_text,
+        "mapping": mapping,
+        "entities": new_entities,
+    }
 
 
 @app.post("/search")

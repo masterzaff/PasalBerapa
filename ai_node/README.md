@@ -40,8 +40,9 @@ Salin `.env.example` → `.env`, lalu isi. **Kredensial LLM tidak di-hardcode.**
 | `EMBED_MODEL` | `LazarusNLP/all-indo-e5-small-v4` | Model embedding (384-dim, prefix `query:`/`passage:`) |
 | `CHROMA_PATH` | `/data/chroma` | Lokasi persist ChromaDB |
 | `COLLECTION` | `peraturan` | Nama koleksi |
-| `SPACY_MODEL` | `xx_ent_wiki_sm` | Model NER multilingual (PERSON/LOCATION/ORG) |
-| `PII_LANG` | `id` | Kode bahasa Presidio |
+| `NER_MODEL` | `cahya/bert-base-indonesian-NER` | Model NER Indonesia (PERSON/ORG/LOKASI). Di-bake ke image saat build. |
+| `PII_SCORE_THRESHOLD` | `0.70` | Ambang skor NER. Entitas asli ~0.96–0.99, sampah ~0.25–0.55. |
+| `PII_WINDOW_CHARS` | `1500` | Ukuran jendela teks (model dibatasi 512 token; dipotong di batas paragraf/kalimat). |
 | `INGEST_LIMIT` | `500` | Jumlah dokumen di-index (0 = semua) |
 | `CHUNK_CHARS` | `480` | Ukuran chunk (disetel utk max_seq ~128 token e5-small) |
 | `AUTO_INGEST` | `1` | Auto-index saat start jika koleksi kosong |

@@ -9,6 +9,10 @@ python-dotenv>=1.0.1
 chromadb>=0.5.5
 sentence-transformers>=3.0.1
 
-# --- PII masking (Presidio + spaCy multilingual NER) ---
-presidio-analyzer>=2.2.364
-spacy>=3.8.0
+# --- PII masking (Indonesian NER + regex) ---
+# Presidio + spaCy were dropped: xx_ent_wiki_sm mislabelled Indonesian legal
+# text badly in both directions (leaked names, masked "Nilai"/"Denda"), and
+# Presidio's remaining pattern recognizers exactly duplicated masker.py's own
+# regex layer. transformers is declared explicitly now that masker.py imports
+# it directly rather than relying on the sentence-transformers dependency.
+transformers>=4.40.0

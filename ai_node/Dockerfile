@@ -8,8 +8,7 @@ ENV PYTHONUNBUFFERED=1 \
     HF_HOME=/data/hf \
     CHROMA_PATH=/data/chroma \
     EMBED_MODEL=LazarusNLP/all-indo-e5-small-v4 \
-    SPACY_MODEL=xx_ent_wiki_sm \
-    PII_LANG=id
+    NER_MODEL=cahya/bert-base-indonesian-NER
 
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 
@@ -22,10 +21,12 @@ RUN uv pip install torch --index-url https://download.pytorch.org/whl/cpu
 # 2) Requirements via uv (cached)
 RUN uv pip install -r requirements.txt
 
-# 3) SpaCy NER model download
-RUN python -m spacy download xx_ent_wiki_sm || uv pip install https://github.com/explosion/spacy-models/releases/download/xx_ent_wiki_sm-3.8.0/xx_ent_wiki_sm-3.8.0-py3-none-any.whl
+# 3) Bake the Indonesian NER model into the image (~440MB) so containers don't
+#    fetch it on first request — a cold /mask would otherwise block on a
+#    download, and an offline host would silently fall back to regex-only.
+RUN python -c "from transformers import pipeline; pipeline('ner', model='${NER_MODEL}', aggregation_strategy='simple')"
 
-COPY app.py masker.py retriever.py prompts.py llm.py ingest.py tools.py pasal_client.py entrypoint.sh ./
+COPY app.py masker.py retriever.py prompts.py llm.py ingest.py tools.py pasal_client.py test_masker.py entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
 VOLUME ["/data"]
