@@ -28,8 +28,23 @@ PASAL_API_TOKENS: List[str] = [
 ]
 PASAL_TIMEOUT = float(os.environ.get("PASAL_TIMEOUT", "15"))
 
+# Generic, reusable escape hatch for when this node's own network path to an
+# upstream is broken/blocked: point PASAL_API_BASE at a host-routed reverse
+# proxy (e.g. a Cloudflare Worker) instead of the upstream directly, and set
+# this to the shared secret it expects. No-op (empty header) if unset, and
+# not pasal-specific — any future client in this codebase can reuse the same
+# HTTP_PROXY_KEY var against the same proxy.
+HTTP_PROXY_KEY = os.environ.get("HTTP_PROXY_KEY", "")
+
 _token_lock = threading.Lock()
 _token_cycle = itertools.cycle(PASAL_API_TOKENS) if PASAL_API_TOKENS else None
+
+
+def _headers(token: str) -> Dict[str, str]:
+    h = {"Authorization": f"Bearer {token}"}
+    if HTTP_PROXY_KEY:
+        h["X-Proxy-Key"] = HTTP_PROXY_KEY
+    return h
 
 
 def is_configured() -> bool:
@@ -74,7 +89,7 @@ def search(query: str, regulation: Optional[str] = None, top_k: int = 6) -> List
                 resp = client.get(
                     f"{PASAL_API_BASE}/search",
                     params={"q": q, "limit": n},
-                    headers={"Authorization": f"Bearer {token}"},
+                    headers=_headers(token),
                 )
         except Exception as e:
             logger.warning("[pasal] request error: %s", e)
@@ -149,7 +164,7 @@ def get_law_detail(frbr_uri: str) -> Optional[Dict[str, Any]]:
             with httpx.Client(timeout=PASAL_TIMEOUT) as client:
                 resp = client.get(
                     f"{PASAL_API_BASE}/laws/{clean_path}",
-                    headers={"Authorization": f"Bearer {token}"},
+                    headers=_headers(token),
                 )
         except Exception as e:
             logger.warning("[pasal] get_law_detail request error: %s", e)
