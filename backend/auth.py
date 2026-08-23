@@ -47,6 +47,21 @@ class UpgradeKdfReq(BaseModel):
     auth_secret: str
 
 
+class ReencryptedMapping(BaseModel):
+    id: str
+    pii_mapping_enc: str
+
+
+class ChangePasswordReq(BaseModel):
+    current_auth_secret: str
+    new_auth_secret: str
+    # Every mapping, decrypted with the OLD key and re-encrypted with the NEW
+    # one, client-side. Sent WITH the password change because the two must land
+    # together: change the password alone and every mapping is orphaned, since
+    # the key that opens them is derived from the password.
+    reencrypted: List[ReencryptedMapping] = []
+
+
 class ConversationIn(BaseModel):
     id: Optional[str] = None
     title: Optional[str] = None
@@ -192,6 +207,66 @@ async def upgrade_kdf(
     return {"kdf_version": current.kdf_version}
 
 
+@auth_router.post("/auth/change-password")
+async def change_password(
+    req: ChangePasswordReq,
+    current: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rotate the password AND every re-encrypted mapping in one transaction.
+
+    The encryption key is derived from the password, so these cannot be
+    separate operations: a half-applied rotation leaves some conversations
+    readable and some permanently opaque. Either both land or neither does.
+
+    The server cannot verify the re-encryption is correct — the blobs are opaque
+    to it. That check belongs to the client, which decrypts with the old key
+    before re-encrypting, and refuses to proceed on anything it could not read.
+    """
+    if current.kdf_version < CURRENT_KDF:
+        raise HTTPException(
+            status_code=409,
+            detail="Akun ini belum memakai KDF terbaru. Masuk ulang sekali, lalu coba lagi.",
+        )
+    if not _verify_pw(req.current_auth_secret, current.password_hash):
+        raise HTTPException(status_code=401, detail="Kata sandi saat ini tidak sesuai.")
+
+    try:
+        if req.reencrypted:
+            ids = [m.id for m in req.reencrypted]
+            res = await db.execute(
+                select(Conversation).where(
+                    Conversation.id.in_(ids),
+                    Conversation.user_id == current.id,
+                )
+            )
+            owned = {c.id: c for c in res.scalars().all()}
+            missing = [i for i in ids if i not in owned]
+            if missing:
+                # Refuse rather than partially apply: the client believes it has
+                # rotated everything, and silently dropping some would leave
+                # unreadable conversations it never warned about.
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{len(missing)} percakapan tidak ditemukan; rotasi dibatalkan.",
+                )
+            for m in req.reencrypted:
+                owned[m.id].pii_mapping_enc = m.pii_mapping_enc
+
+        current.password_hash = _hash_pw(req.new_auth_secret)
+        await db.commit()
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Gagal mengganti kata sandi: {str(e)}")
+
+    # Old JWTs stay valid (they carry only the user id), so hand back a fresh one
+    # for symmetry with login rather than implying the old one was revoked.
+    return {"token": _make_token(current.id), "rotated": len(req.reencrypted)}
+
+
 @auth_router.get("/auth/me")
 async def me(current: User = Depends(get_current_user)):
     return {"user": _public_user(current)}
@@ -218,6 +293,25 @@ async def list_conversations(
     conversations_list = res.scalars().all()
     items = [_conv_summary(c) for c in conversations_list]
     return {"items": items}
+
+
+@auth_router.get("/conversations/secrets")
+async def list_conversation_secrets(
+    current: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Every encrypted mapping this user owns, for a client-side key rotation.
+
+    Opaque blobs only — no messages, no titles. Declared BEFORE the
+    /conversations/{conv_id} route so "secrets" isn't captured as an id.
+    """
+    res = await db.execute(
+        select(Conversation).where(
+            Conversation.user_id == current.id,
+            Conversation.pii_mapping_enc.isnot(None),
+        )
+    )
+    return {"items": [{"id": c.id, "pii_mapping_enc": c.pii_mapping_enc} for c in res.scalars().all()]}
 
 
 @auth_router.post("/conversations")

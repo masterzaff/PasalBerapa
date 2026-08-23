@@ -131,21 +131,9 @@ async def proxy_analyze(request: Request):
         logger.error(f"Error proxying /analyze: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@api_router.post("/search")
-async def proxy_search(request: Request):
-    if not ai_client:
-        raise HTTPException(status_code=503, detail="AI Service client belum diinisialisasi")
-    try:
-        body = await request.json()
-        res = await ai_client.post("/search", json=body, timeout=20.0)
-        return Response(content=res.content, status_code=res.status_code, media_type="application/json")
-    except (httpx.ConnectError, httpx.ConnectTimeout):
-        raise HTTPException(status_code=503, detail="AI Node sedang offline atau belum siap")
-    except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="AI Node timeout saat pencarian dokumen hukum")
-    except Exception as e:
-        logger.error(f"Error proxying /search: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# The /search proxy is gone with the AI node's endpoint: it fronted the local
+# ChromaDB index, which had been dead since its upstream dataset disappeared.
+# Legal lookup now happens inside /analyze via the pasal.id tool call.
 
 app.include_router(api_router)
 app.include_router(auth_router)

@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { authApi } from "@/lib/authApi";
 import { useSession } from "@/context/SessionContext";
-import { deriveKeys, cacheEncKey, loadEncKey, clearEncKey } from "@/lib/crypto";
+import { deriveKeys, cacheEncKey, loadEncKey, clearEncKey, encryptMapping, decryptMapping } from "@/lib/crypto";
 
 const LS_TOKEN = "pasalberapa.token";
 const Ctx = createContext(null);
@@ -26,6 +26,12 @@ export function AuthProvider({ children }) {
     return false;
   });
 
+  // The AES key that decrypts PII mappings. Lives in sessionStorage only, so it
+  // survives a refresh but not a browser restart — at which point the user is
+  // still signed in but must unlock() before real values can be shown.
+  // Declared above the effect below, which clears it on an invalid token.
+  const [encKey, setEncKey] = useState(() => (typeof window !== "undefined" ? loadEncKey() : null));
+
   useEffect(() => {
     let alive = true;
     if (!token) {
@@ -46,11 +52,6 @@ export function AuthProvider({ children }) {
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, [token]);
-
-  // The AES key that decrypts PII mappings. Lives in sessionStorage only, so it
-  // survives a refresh but not a browser restart — at which point the user is
-  // still signed in but must unlock() before real values can be shown.
-  const [encKey, setEncKey] = useState(() => (typeof window !== "undefined" ? loadEncKey() : null));
 
   const applyKey = useCallback((raw) => {
     cacheEncKey(raw);
@@ -90,6 +91,47 @@ export function AuthProvider({ children }) {
     return d.user;
   }, [persist, applyKey]);
 
+  /**
+   * Rotate the password and every PII mapping together.
+   *
+   * The encryption key is derived from the password, so changing one without
+   * the other orphans every mapping. Sequence: derive both keys, pull every
+   * encrypted blob, decrypt with old and re-encrypt with new, then send the
+   * whole set alongside the new authSecret so the server applies it in one
+   * transaction.
+   *
+   * `preview` (dry run) reports how many blobs cannot be decrypted with the
+   * current key — those would become permanently unreadable, so the caller must
+   * surface that and get explicit consent rather than discovering it after.
+   */
+  const changePassword = useCallback(async (currentPassword, newPassword, { preview = false } = {}) => {
+    if (!user?.email) throw new Error("Belum masuk.");
+    const oldKeys = await deriveKeys(user.email, currentPassword);
+    const newKeys = await deriveKeys(user.email, newPassword);
+
+    const { items = [] } = await authApi.conversationSecrets(token);
+    const reencrypted = [];
+    const unreadable = [];
+    for (const it of items) {
+      const mapping = await decryptMapping(oldKeys.encKeyRaw, it.pii_mapping_enc);
+      if (!mapping) { unreadable.push(it.id); continue; }
+      reencrypted.push({ id: it.id, pii_mapping_enc: await encryptMapping(newKeys.encKeyRaw, mapping) });
+    }
+    if (preview) return { total: items.length, rotated: reencrypted.length, unreadable: unreadable.length };
+
+    const d = await authApi.changePassword({
+      current_auth_secret: oldKeys.authSecret,
+      new_auth_secret: newKeys.authSecret,
+      reencrypted,
+    }, token);
+
+    // Only now is the new key the right one — swapping earlier would leave the
+    // session unable to read anything if the request failed.
+    if (d.token) persist(d.token, user);
+    applyKey(newKeys.encKeyRaw);
+    return { total: items.length, rotated: reencrypted.length, unreadable: unreadable.length };
+  }, [user, token, persist, applyKey]);
+
   // Re-derive the key for an already-signed-in session (browser restart). No
   // network call: a wrong password simply fails to decrypt, since the server
   // has nothing to validate it against.
@@ -113,7 +155,7 @@ export function AuthProvider({ children }) {
   }, [resetSession]);
 
   return (
-    <Ctx.Provider value={{ token, user, loading, encKey, login, register, logout, unlock }}>
+    <Ctx.Provider value={{ token, user, loading, encKey, login, register, logout, unlock, changePassword }}>
       {children}
     </Ctx.Provider>
   );

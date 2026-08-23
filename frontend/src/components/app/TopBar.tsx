@@ -1,13 +1,13 @@
 import React from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Gavel, RotateCcw, History, LogOut, UserPlus, Building2, User, SquarePen, Lock, Settings } from "lucide-react";
+import { Gavel, RotateCcw, History, LogOut, UserPlus, Building2, User, SquarePen, Lock, Settings, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSession } from "@/context/SessionContext";
 import { useAuth } from "@/context/AuthContext";
 import { useUI } from "@/context/UIContext";
 
-export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome, onOpenUnlock, onOpenSettings }) {
+export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome, onOpenUnlock, onOpenSettings, onOpenChangePw }) {
   const { resetSession, hasDocument, messages } = useSession();
   const { user, logout, encKey } = useAuth();
   const { audienceMode, setAudienceMode } = useUI();
@@ -132,6 +132,14 @@ export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome, onOpenUnlo
               <span className="hidden max-w-[140px] truncate rounded-full bg-accent px-3 py-1 text-xs font-medium text-accent-foreground md:inline-flex">
                 {user.name || user.email}
               </span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button data-testid="change-password-button" variant="ghost" size="icon" onClick={onOpenChangePw}>
+                    <KeyRound className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Ganti kata sandi (enkripsi ulang data pribadi)</TooltipContent>
+              </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button data-testid="logout-button" variant="ghost" size="icon" onClick={logout}>

@@ -177,6 +177,11 @@ export default function ChatView({ onOpenAuth }) {
     }
   };
 
+  // hasDocument is rawText-only (it gates the PII review, which needs the
+  // original). Panels care about whether there is any document to show at all.
+  const hasAnyDocument = s.hasDocument || Boolean(s.maskedText && s.maskedText.trim());
+  const vaultCount = Object.keys(s.piiMapping || {}).length;
+
   const isFreshNewChat = !s.hasDocument && s.messages.length === 0 && !analyzing;
 
   return (
@@ -185,7 +190,7 @@ export default function ChatView({ onOpenAuth }) {
         <div className="sticky top-0 z-30 border-b bg-background/70 backdrop-blur">
           <div className="mx-auto flex max-w-3xl items-center justify-between gap-2 px-4 py-2">
             <div className="flex min-w-0 items-center gap-2 text-sm">
-              {s.hasDocument ? (
+              {hasAnyDocument ? (
                 <FileCheck2 className="h-4 w-4 shrink-0 text-primary" />
               ) : (
                 <Scale className="h-4 w-4 shrink-0 text-primary" />
@@ -229,11 +234,21 @@ export default function ChatView({ onOpenAuth }) {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              {s.hasDocument && (
+              {/* Gate on the MASKED document too, not just the raw one: a
+                  restored conversation has no rawText by design, but it does
+                  have masked_text and a decrypted mapping, so Dokumen and Vault
+                  are both meaningful there and used to vanish. Risiko is gated
+                  on actual risks — they aren't persisted, and an empty
+                  dashboard reads as broken rather than as "not run yet". */}
+              {hasAnyDocument && (
                 <>
                   <PanelButton onClick={() => ui.openPanel("doc")} icon={FileText} label="Dokumen" testId="open-doc-panel-button" />
-                  <PanelButton onClick={() => ui.openPanel("risk")} icon={Gauge} label="Risiko" count={s.risks.length} testId="open-risk-panel-button" />
-                  <PanelButton onClick={() => ui.openPanel("vault")} icon={Lock} label="Vault" count={Object.keys(s.piiMapping || {}).length} testId="open-vault-panel-button" />
+                  {s.risks.length > 0 && (
+                    <PanelButton onClick={() => ui.openPanel("risk")} icon={Gauge} label="Risiko" count={s.risks.length} testId="open-risk-panel-button" />
+                  )}
+                  {vaultCount > 0 && (
+                    <PanelButton onClick={() => ui.openPanel("vault")} icon={Lock} label="Vault" count={vaultCount} testId="open-vault-panel-button" />
+                  )}
                 </>
               )}
             </div>

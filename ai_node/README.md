@@ -2,11 +2,12 @@
 
 "Otak" PasalBerapa? yang kamu **host sendiri** (privacy-first). Menyediakan:
 
-- **PII Masking** — Microsoft **Presidio** + spaCy multilingual (`xx_ent_wiki_sm`)
-  + *custom recognizer* Indonesia (NIK, NPWP, No. HP, Email, Rupiah, Alamat, No. Rekening).
-- **RAG** — Vector DB **ChromaDB** + embedding Indonesia **`LazarusNLP/all-indo-e5-small-v4`**
-  atas dokumen `peraturan.go.id`.
-- **LLM** — pemanggilan endpoint **OpenAI-compatible** (`/chat/completions`).
+- **PII Masking** — NER Indonesia (`cahya/bert-base-indonesian-NER`) untuk nama /
+  organisasi / lokasi, **plus** regex Indonesia sebagai jaminan cakupan untuk PII
+  terstruktur (NIK, NPWP, No. HP, Email, Rupiah, Alamat, No. Rekening).
+- **Pencarian hukum** — API **pasal.id** lewat tool calling (bukan indeks lokal).
+- **LLM** — pemanggilan endpoint **OpenAI-compatible** (`/chat/completions`)
+  dengan loop ReAct tool calling.
 
 Frontend `PasalBerapa?` hanyalah *wrapper*: ia memanggil endpoint di node ini.
 Lihat **`API_CONTRACT.md`** untuk bentuk payload/respons persis.
@@ -17,13 +18,14 @@ Lihat **`API_CONTRACT.md`** untuk bentuk payload/respons persis.
 
 | File | Fungsi |
 | --- | --- |
-| `app.py` | FastAPI: route `/health`, `/mask`, `/analyze`, `/search` |
-| `masker.py` | PII masking (Presidio + regex Indonesia) → tag `<TYPE_N>` |
-| `retriever.py` | RAG: ChromaDB + embedding e5 Indonesia |
+| `app.py` | FastAPI: route `/health`, `/mask`, `/analyze` |
+| `masker.py` | PII masking (NER Indonesia + regex) → tag `<TYPE_N>` |
+| `test_masker.py` | Regression gate masking (bocor DAN over-masking) |
+| `pasal_client.py` | Pencarian hukum via API pasal.id (rotasi token) |
 | `prompts.py` | Persona + skema JSON output (jaga tag PII, soroti red flags) |
-| `llm.py` | Klien LLM OpenAI-compatible (via `httpx`) |
-| `ingest.py` | Index subset `peraturan.go.id` → ChromaDB |
-| `Dockerfile` / `entrypoint.sh` | Build & jalankan (auto-ingest saat index kosong) |
+| `llm.py` | Klien LLM OpenAI-compatible + ReAct tool calling (via `httpx`) |
+| `tools.py` | Definisi & eksekusi tool untuk agent |
+| `Dockerfile` / `entrypoint.sh` | Build & jalankan |
 | `.env.example` | Contoh konfigurasi environment |
 
 ---
@@ -37,15 +39,15 @@ Salin `.env.example` → `.env`, lalu isi. **Kredensial LLM tidak di-hardcode.**
 | `LLM_BASE_URL` | `https://api.openai.com/v1` | Base URL Chat Completions (OpenAI / vLLM / Ollama / dst) |
 | `LLM_API_KEY` | — | **Wajib** untuk `/analyze`. Dikirim sebagai `Bearer`. |
 | `LLM_MODEL` | `gpt-4o-mini` | Nama model |
-| `EMBED_MODEL` | `LazarusNLP/all-indo-e5-small-v4` | Model embedding (384-dim, prefix `query:`/`passage:`) |
-| `CHROMA_PATH` | `/data/chroma` | Lokasi persist ChromaDB |
-| `COLLECTION` | `peraturan` | Nama koleksi |
-| `NER_MODEL` | `cahya/bert-base-indonesian-NER` | Model NER Indonesia (PERSON/ORG/LOKASI). Di-bake ke image saat build. |
+| `NER_MODEL` | `cahya/bert-base-indonesian-NER` | Model NER Indonesia (PERSON/ORG/LOKASI). Di-bake ke image saat build (`HF_HOME=/opt/hf`, sengaja di luar volume `/data`). |
 | `PII_SCORE_THRESHOLD` | `0.70` | Ambang skor NER. Entitas asli ~0.96–0.99, sampah ~0.25–0.55. |
 | `PII_WINDOW_CHARS` | `1500` | Ukuran jendela teks (model dibatasi 512 token; dipotong di batas paragraf/kalimat). |
-| `INGEST_LIMIT` | `500` | Jumlah dokumen di-index (0 = semua) |
-| `CHUNK_CHARS` | `480` | Ukuran chunk (disetel utk max_seq ~128 token e5-small) |
-| `AUTO_INGEST` | `1` | Auto-index saat start jika koleksi kosong |
+| `PII_REQUIRE_NER` | `0` | `1` = tolak start kalau NER gagal dimuat. **Nyalakan di produksi**: fallback regex-only sama sekali tidak mendeteksi nama, jadi nama asli akan lolos ke LLM. |
+| `PASAL_API_TOKENS` | — | Token pasal.id, pisahkan dengan koma (dirotasi round-robin). |
+
+> Pencarian hukum memakai API **pasal.id** (`pasal_client.py`). ChromaDB +
+> sentence-transformers dan skrip ingest sudah dihapus: dataset upstream-nya
+> mati dan indeksnya selalu berisi 0 dokumen.
 
 ---
 
@@ -55,13 +57,14 @@ Salin `.env.example` → `.env`, lalu isi. **Kredensial LLM tidak di-hardcode.**
 cd ai_node
 cp .env.example .env        # lalu isi LLM_API_KEY dll
 docker build -t pasalberapa-ai .
-docker run --rm -p 8000:8000 --env-file .env -v pasalberapa_data:/data pasalberapa-ai
+docker run --rm -p 8000:8000 --env-file .env pasalberapa-ai
 ```
 
-Saat pertama kali start (koleksi kosong), `entrypoint.sh` menjalankan `ingest.py`
-otomatis (sparse-checkout repo + embedding). Ini butuh waktu; log muncul di stdout.
+Node-nya stateless: model NER sudah di-bake ke image (`HF_HOME=/opt/hf`), jadi
+start-nya langsung tanpa indexing atau unduhan.
 
-Cek kesehatan:
+Cek kesehatan (`status` jadi `degraded` kalau NER gagal dimuat — artinya deteksi
+nama sedang mati):
 
 ```bash
 curl http://localhost:8000/health
@@ -77,10 +80,10 @@ curl -s -X POST http://localhost:8000/mask \
   -H 'Content-Type: application/json' \
   -d '{"text":"Andi Wibowo, NIK 3201234567890123, HP 081234567890, denda Rp 5.000.000"}'
 
-# 2) Retrieval mentah
-curl -s -X POST http://localhost:8000/search \
+# 2) Masking lanjutan (pertanyaan chat, tag menyambung dari dokumen)
+curl -s -X POST http://localhost:8000/mask \
   -H 'Content-Type: application/json' \
-  -d '{"query":"pesangon PHK","top_k":5}'
+  -d '{"text":"Apakah Budi Santoso boleh resign?","known_mapping":{"<PERSON_1>":"Budi Santoso"}}'
 
 # 3) Analisis (butuh LLM_BASE_URL + LLM_API_KEY)
 curl -s -X POST http://localhost:8000/analyze \

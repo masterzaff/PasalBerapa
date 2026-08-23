@@ -98,21 +98,35 @@ _REGEX_RECOGNIZERS = [
 # ---------------------------------------------------------------------------
 _ner = None
 _ner_ready = False
+_ner_error = None
+
+# Kalau di-set "1", gagal memuat NER = server menolak start. Pakai di produksi:
+# fallback regex-only TIDAK mendeteksi nama sama sekali, dan diam-diam melewatkan
+# nama asli jauh lebih berbahaya daripada container yang mati keras.
+REQUIRE_NER = os.environ.get("PII_REQUIRE_NER", "0") == "1"
 
 
 def _build_ner():
+    global _ner_error
     try:
         from transformers import pipeline
     except Exception as e:
-        logger.warning("[masker] transformers tidak tersedia (%s) -> regex-only.", e)
-        return None
-    try:
-        nlp = pipeline("ner", model=NER_MODEL, aggregation_strategy="simple")
-        logger.info("[masker] NER siap (model=%s, threshold=%.2f).", NER_MODEL, PII_SCORE_THRESHOLD)
-        return nlp
-    except Exception as e:
-        logger.warning("[masker] gagal memuat NER '%s' (%s) -> regex-only.", NER_MODEL, e)
-        return None
+        _ner_error = f"transformers tidak tersedia: {e}"
+    else:
+        try:
+            nlp = pipeline("ner", model=NER_MODEL, aggregation_strategy="simple")
+            logger.info("[masker] NER siap (model=%s, threshold=%.2f).", NER_MODEL, PII_SCORE_THRESHOLD)
+            return nlp
+        except Exception as e:
+            _ner_error = f"gagal memuat '{NER_MODEL}': {e}"
+
+    # Sengaja ERROR, bukan WARNING: tanpa NER, deteksi NAMA mati total. Regex
+    # tetap menangkap NIK/NPWP/telepon/email, tapi "Budi Santoso" akan lolos apa
+    # adanya ke LLM. Ini kegagalan privasi, bukan sekadar penurunan kualitas.
+    logger.error("[masker] %s -> REGEX-ONLY: deteksi nama MATI, PII bisa bocor.", _ner_error)
+    if REQUIRE_NER:
+        raise RuntimeError(f"PII_REQUIRE_NER=1 tapi NER gagal dimuat: {_ner_error}")
+    return None
 
 
 def _get_ner():
@@ -310,3 +324,17 @@ def mask_text(
 
 def engine_name() -> str:
     return f"ner:{NER_MODEL}+regex-id" if _get_ner() is not None else "regex-id-only"
+
+
+def ner_status() -> Dict[str, object]:
+    """Untuk /health. `ok=False` berarti deteksi nama sedang MATI — konsumer
+    (dan manusia yang melihat health) harus memperlakukannya sebagai degraded,
+    bukan sekadar catatan kecil."""
+    ok = _get_ner() is not None
+    return {
+        "ok": ok,
+        "model": NER_MODEL,
+        "threshold": PII_SCORE_THRESHOLD,
+        "error": None if ok else _ner_error,
+        "warning": None if ok else "Deteksi NAMA nonaktif (regex-only): nama orang bisa lolos ke LLM.",
+    }

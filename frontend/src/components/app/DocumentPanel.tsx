@@ -50,11 +50,19 @@ function renderMasked(text) {
 export default function DocumentPanel() {
   const { rawText, maskedText, extractInfo, highlightExcerpt } = useSession();
   const [search, setSearch] = useState("");
-  const [showCensored, setShowCensored] = useState(false);
+  // A restored conversation has no rawText (the unmasked original is never
+  // persisted), only the masked copy — so there is nothing to un-censor and the
+  // toggle must start on, or the panel renders blank.
+  const hasRaw = Boolean(rawText && rawText.trim());
+  const [showCensored, setShowCensored] = useState(!hasRaw);
   const bodyRef = useRef(null);
   const highlightRef = useRef(null);
 
-  const activeText = showCensored && maskedText ? maskedText : rawText;
+  useEffect(() => {
+    if (!hasRaw) setShowCensored(true);
+  }, [hasRaw]);
+
+  const activeText = (showCensored || !hasRaw) && maskedText ? maskedText : rawText;
   const paragraphs = useMemo(
     () => activeText.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean),
     [activeText]
@@ -86,7 +94,8 @@ export default function DocumentPanel() {
           )}
         </div>
         <div className="flex items-center gap-1">
-          {maskedText && (
+          {/* Nothing to toggle when the original was never stored. */}
+          {maskedText && hasRaw && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button

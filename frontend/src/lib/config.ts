@@ -13,6 +13,13 @@ const ENV_DEFAULTS = {
   timeoutMs: 60000,
 };
 
+// The build-time defaults. NEXT_PUBLIC_* is inlined by Next at build time, so
+// these are effectively baked into the bundle and cannot change without a
+// rebuild — which is exactly why the localStorage override below exists.
+export function getEnvDefaults() {
+  return { ...ENV_DEFAULTS };
+}
+
 export function getEndpoints() {
   let stored = {};
   if (typeof window !== "undefined") {

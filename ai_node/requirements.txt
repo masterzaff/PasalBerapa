@@ -5,9 +5,9 @@ pydantic>=2.12.5
 httpx>=0.27.0
 python-dotenv>=1.0.1
 
-# --- RAG: vector DB + embeddings ---
-chromadb>=0.5.5
-sentence-transformers>=3.0.1
+# NOTE: ChromaDB + sentence-transformers are gone. Legal retrieval moved to the
+# live pasal.id API (pasal_client.py); the local index had been dead since its
+# upstream dataset went away, and always reported 0 documents.
 
 # --- PII masking (Indonesian NER + regex) ---
 # Presidio + spaCy were dropped: xx_ent_wiki_sm mislabelled Indonesian legal

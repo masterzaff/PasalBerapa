@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { getEndpoints, saveEndpoints } from "@/lib/config";
+import { getEndpoints, saveEndpoints, resetEndpoints, getEnvDefaults } from "@/lib/config";
 import { useConnection } from "@/context/ConnectionContext";
 
 export default function SettingsModal({ open, onOpenChange }) {
@@ -42,6 +42,20 @@ export default function SettingsModal({ open, onOpenChange }) {
     toast.success("Pengaturan endpoint disimpan.");
     onOpenChange(false);
   };
+
+  // Without this, an override saved once could only be undone by clearing
+  // localStorage by hand — resetEndpoints() existed but nothing ever called it.
+  const onReset = () => {
+    setForm(resetEndpoints());
+    conn.refreshCfg();
+    conn.check();
+    toast.info("Kembali ke default bawaan build.");
+  };
+
+  const defaults = getEnvDefaults();
+  const overridden = ["aiNodeUrl", "piiEndpoint", "analyzeEndpoint"].some(
+    (k) => getEndpoints()[k] !== defaults[k]
+  );
 
   const onTest = async () => {
     persist();
@@ -142,9 +156,20 @@ export default function SettingsModal({ open, onOpenChange }) {
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>Tutup</Button>
-          <Button data-testid="settings-save-button" onClick={onSave}>Simpan</Button>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
+          {overridden
+            ? "Saat ini memakai override lokal (tersimpan di browser ini saja), bukan default bawaan build."
+            : "Saat ini memakai default bawaan build (dari NEXT_PUBLIC_* saat kompilasi)."}
+        </p>
+
+        <DialogFooter className="sm:justify-between">
+          <Button variant="ghost" size="sm" onClick={onReset} disabled={!overridden} data-testid="settings-reset-button">
+            Reset ke default
+          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>Tutup</Button>
+            <Button data-testid="settings-save-button" onClick={onSave}>Simpan</Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

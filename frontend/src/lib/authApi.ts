@@ -23,6 +23,9 @@ export const authApi = {
   login: (b) => req("/auth/login", { method: "POST", body: b }),
   upgradeKdf: (authSecret, token) =>
     req("/auth/upgrade-kdf", { method: "POST", body: { auth_secret: authSecret }, token }),
+  // Encrypted mappings only, for a client-side key rotation.
+  conversationSecrets: (token) => req("/conversations/secrets", { token }),
+  changePassword: (b, token) => req("/auth/change-password", { method: "POST", body: b, token }),
   me: (token) => req("/auth/me", { token }),
   listConversations: (token) => req("/conversations", { token }),
   saveConversation: (b, token) => req("/conversations", { method: "POST", body: b, token }),

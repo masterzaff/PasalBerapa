@@ -5,9 +5,8 @@ FastAPI server yang menjalankan seluruh "otak" PasalBerapa? di server-mu sendiri
 (privacy-first: frontend hanya wrapper). Sesuai `API_CONTRACT.md`:
 
     GET  /health   -> liveness + status index/LLM
-    POST /mask     -> redaksi PII (Presidio + regex Indonesia)
-    POST /analyze  -> RAG (ChromaDB) + LLM (OpenAI-compatible) -> analisis terstruktur
-    POST /search   -> debug retrieval mentah (opsional)
+    POST /mask     -> redaksi PII (NER Indonesia + regex)
+    POST /analyze  -> LLM (OpenAI-compatible) + tool calling -> analisis terstruktur
 
 Konfigurasi via ENV (lihat .env.example). Kredensial LLM TIDAK di-hardcode.
 """
@@ -20,7 +19,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import masker
-import retriever
 import prompts
 import llm
 import tools
@@ -53,11 +51,6 @@ class MaskReq(BaseModel):
     known_mapping: Optional[Dict[str, str]] = None
 
 
-class SearchReq(BaseModel):
-    query: str
-    top_k: int = TOP_K_DEFAULT
-
-
 class AnalyzeReq(BaseModel):
     masked_text: str = ""
     mode: str = "chat"  # chat | summary | risk | key_articles
@@ -70,13 +63,14 @@ class AnalyzeReq(BaseModel):
 # --------------------------- Routes ---------------------------
 @app.get("/health")
 async def health():
+    ner = masker.ner_status()
     return {
-        "status": "ok",
+        # "degraded" kalau NER mati: regex tetap jalan tapi NAMA tidak tersensor.
+        "status": "ok" if ner["ok"] else "degraded",
         "service": "pasalberapa-ai-node",
         "version": VERSION,
-        "indexed_chunks": retriever.count(),
-        "embed_model": retriever.EMBED_MODEL,
         "pii_engine": masker.engine_name(),
+        "pii_ner": ner,
         "llm": llm.status(),
         "pasal_id_configured": pasal_client.is_configured(),
         "pasal_id_tokens": len(pasal_client.PASAL_API_TOKENS),
@@ -101,14 +95,6 @@ async def mask(req: MaskReq):
         "mapping": mapping,
         "entities": new_entities,
     }
-
-
-@app.post("/search")
-async def search(req: SearchReq):
-    results = retriever.search(req.query, req.top_k)
-    if not results:
-        return {"results": [], "note": "Index kosong / tidak ada hasil — jalankan ingest.py."}
-    return {"results": results}
 
 
 @app.post("/analyze")
