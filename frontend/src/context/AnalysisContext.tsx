@@ -102,7 +102,9 @@ export function AnalysisProvider({ children }) {
 
       try {
         const baseMapping = customMapping ?? s.piiMapping ?? {};
+        const effectiveQuestion = question || MODE_LABELS[mode] || "Analisis";
         const { masked: maskedQuestion, mapping } = await maskQuestion(question, baseMapping);
+        const actualSentMasked = maskedQuestion || remaskText(effectiveQuestion, mapping);
         // s.maskedText first: a conversation restored from storage has no raw
         // text (never persisted) but does have the masked document, and without
         // this the LLM would be answering follow-ups with no document at all.
@@ -141,8 +143,9 @@ export function AnalysisProvider({ children }) {
           // question sent, raw masked reply received — for the "Pesan Asli"
           // transparency view. Distinct from debugMessages (the full
           // system/tool LLM conversation, dev-facing).
-          sentMasked: maskedQuestion || "",
+          sentMasked: actualSentMasked,
           receivedRaw: replyRaw,
+          error: false,
         };
         if (regenerateMessageId) {
           s.setMessages((prev) =>
@@ -156,10 +159,12 @@ export function AnalysisProvider({ children }) {
                   sentMasked: m.sentMasked,
                   receivedRaw: m.receivedRaw,
                   mode: m.mode,
+                  error: m.error || false,
                   ts: m.ts || Date.now(),
                 };
                 const versions = [...(m.versions || []), prevSnapshot];
-                return { ...m, ...assistantMsg, versions, ts: Date.now() };
+                const { error: _err, ...mRest } = m;
+                return { ...mRest, ...assistantMsg, error: false, versions, ts: Date.now() };
               }
               return m;
             })

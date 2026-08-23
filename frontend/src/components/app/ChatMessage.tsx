@@ -1,11 +1,10 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
-import { Bot, User, BookMarked, Copy, Check, Scale, ShieldAlert, Wrench, ChevronDown, Bug, RotateCw, Eye, Pencil } from "lucide-react";
+import { Bot, User, BookMarked, Copy, Check, Scale, ShieldAlert, Wrench, ChevronDown, RotateCw, Eye, Pencil } from "lucide-react";
 import { MODE_LABELS, useAnalysis } from "@/context/AnalysisContext";
 import { useSession } from "@/context/SessionContext";
 import { toast } from "sonner";
-import DebugRequestModal from "@/components/app/DebugRequestModal";
 import OriginalMessageModal from "@/components/app/OriginalMessageModal";
 
 // Komponen markdown minimal — cukup buat gaya balasan LLM (bold, list, paragraf, link).
@@ -42,7 +41,6 @@ export function Message({ m }) {
   const [copied, setCopied] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [citationsOpen, setCitationsOpen] = useState(false);
-  const [debugOpen, setDebugOpen] = useState(false);
   const [originalOpen, setOriginalOpen] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -206,7 +204,7 @@ export function Message({ m }) {
 
         <div
           className={`rounded-2xl rounded-tl-xs px-4 py-3 text-sm leading-relaxed ${
-            m.error
+            m.error && !isThisMessageBusy
               ? "border border-destructive/40 bg-destructive/10 text-destructive dark:text-red-300 font-medium"
               : "border bg-card/60 backdrop-blur text-foreground shadow-xs"
           }`}
@@ -317,15 +315,6 @@ export function Message({ m }) {
                   <Eye className="h-3 w-3" />
                   <span>Pesan Asli</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setDebugOpen(true)}
-                  className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors"
-                  title="Lihat request ke LLM"
-                >
-                  <Bug className="h-3 w-3" />
-                  <span>Debug</span>
-                </button>
               </>
             )}
             {prevUserMsg && (
@@ -344,7 +333,6 @@ export function Message({ m }) {
         )}
       </div>
 
-      <DebugRequestModal open={debugOpen} onOpenChange={setDebugOpen} messages={m.debugMessages || []} />
       <OriginalMessageModal
         open={originalOpen}
         onOpenChange={setOriginalOpen}
