@@ -58,6 +58,9 @@ services:
       TOP_K_DEFAULT: ${TOP_K_DEFAULT:-6}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
       PASAL_API_TOKENS: ${PASAL_API_TOKENS:-}
+      PASAL_API_BASE: ${PASAL_API_BASE:-https://pasal.id/api/v1}
+      PASAL_TIMEOUT: ${PASAL_TIMEOUT:-15}
+      HTTP_PROXY_KEY: ${HTTP_PROXY_KEY:-}
     volumes:
       - ai_node_data:/data
     extra_hosts:
