@@ -39,6 +39,35 @@ LEGAL_TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
+            "name": "read_law",
+            "description": "Membaca teks lengkap peraturan atau isi pasal spesifik dari hukum Indonesia via pasal.id. Gunakan frbr_uri atau url yang didapat dari hasil search_indonesian_law, atau masukkan nama peraturan beserta nomor pasalnya.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "identifier": {
+                        "type": "string",
+                        "description": "FRBR URI (contoh: 'akn/id/act/uu/2003/13'), URL peraturan dari hasil search_indonesian_law, atau nama peraturan"
+                    },
+                    "pasal": {
+                        "type": "string",
+                        "description": "Nomor pasal spesifik yang ingin dibaca (contoh: '1', '62', '1320'). Opsional; jika diisi langsung mengambil isi pasal tersebut."
+                    },
+                    "start_line": {
+                        "type": "integer",
+                        "description": "Nomor baris awal (1-indexed) jika ingin membaca sebagian baris dari teks peraturan"
+                    },
+                    "end_line": {
+                        "type": "integer",
+                        "description": "Nomor baris akhir (1-indexed) jika ingin membaca sebagian baris dari teks peraturan"
+                    }
+                },
+                "required": ["identifier"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "search_user_document",
             "description": "Mencari kata kunci atau topik klausul di dalam dokumen kontrak pengguna. Mengembalikan cuplikan teks beserta nomor baris tempat klausul tersebut berada.",
             "parameters": {
@@ -90,6 +119,21 @@ def execute_search_law(query: str, regulation: Optional[str] = None, top_k: int 
         "found": True,
         "results": results
     }
+
+
+def execute_read_law(
+    identifier: str,
+    pasal: Optional[str] = None,
+    start_line: Optional[int] = None,
+    end_line: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Membaca isi pasal spesifik atau potongan teks peraturan dari pasal.id."""
+    return pasal_client.read_law_content(
+        identifier=identifier,
+        pasal=pasal,
+        start_line=start_line,
+        end_line=end_line,
+    )
 
 
 def execute_search_user_doc(query: str, doc_lines: List[str], max_matches: int = 3) -> Dict[str, Any]:

@@ -261,6 +261,16 @@ def _describe_tool_call(fname: str, fargs: Dict[str, Any]) -> str:
         q = fargs.get("query", "")
         reg = fargs.get("regulation")
         return f"Cari pasal hukum: \"{q}\"" + (f" ({reg})" if reg else "")
+    if fname == "read_law":
+        ident = fargs.get("identifier", "")
+        pasal = fargs.get("pasal")
+        if pasal:
+            return f"Baca {pasal} ({ident})"
+        s_line = fargs.get("start_line")
+        e_line = fargs.get("end_line")
+        if s_line and e_line:
+            return f"Baca isi peraturan {ident} baris {s_line}-{e_line}"
+        return f"Baca isi peraturan {ident}"
     if fname == "search_user_document":
         return f"Cari di dokumen pengguna: \"{fargs.get('query', '')}\""
     if fname == "read_document_lines":
@@ -381,6 +391,15 @@ def chat_agentic(
                         for r in tool_result["results"]:
                             if r not in collected_citations:
                                 collected_citations.append(r)
+                    elif fname == "read_law" and isinstance(tool_result, dict) and tool_result.get("found"):
+                        cit = {
+                            "regulation": tool_result.get("regulation", ""),
+                            "article": tool_result.get("pasal", ""),
+                            "snippet": (tool_result.get("content", "") or "")[:500],
+                            "url": tool_result.get("url", ""),
+                        }
+                        if cit.get("regulation") and cit not in collected_citations:
+                            collected_citations.append(cit)
 
                     current_messages.append({
                         "role": "tool",

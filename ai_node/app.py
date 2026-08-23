@@ -114,6 +114,12 @@ async def analyze(req: AnalyzeReq):
                 q = args.get("query") or ""
                 reg = args.get("regulation")
                 return tools.execute_search_law(q, regulation=reg, top_k=req.top_k)
+            elif name == "read_law":
+                ident = args.get("identifier") or ""
+                pasal = args.get("pasal")
+                s_line = int(args["start_line"]) if args.get("start_line") is not None else None
+                e_line = int(args["end_line"]) if args.get("end_line") is not None else None
+                return tools.execute_read_law(ident, pasal=pasal, start_line=s_line, end_line=e_line)
             elif name == "search_user_document":
                 q = args.get("query") or ""
                 return tools.execute_search_user_doc(q, doc_lines=doc_lines)
