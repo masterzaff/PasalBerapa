@@ -15,7 +15,7 @@ export function ConnectionProvider({ children }) {
 
   const check = useCallback(async () => {
     const c = getEndpoints();
-    if (!c.aiNodeUrl || !c.aiNodeUrl.trim()) {
+    if (!c.healthEndpoint || !c.healthEndpoint.trim()) {
       setStatus("unconfigured");
       setError(null);
       setLatency(null);

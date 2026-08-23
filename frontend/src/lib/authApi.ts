@@ -1,10 +1,10 @@
 import { getAnonKey } from "@/lib/anonKey";
-
-const API = (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.REACT_APP_BACKEND_URL || "").replace(/\/$/, "") + "/api";
+import { getEndpoints } from "@/lib/config";
 
 async function req(path, { method = "GET", body, token, signal } = {}) {
   const anonKey = getAnonKey();
-  const res = await fetch(API + path, {
+  const apiRoot = getEndpoints().apiRoot;
+  const res = await fetch(apiRoot + path, {
     method,
     headers: {
       ...(body ? { "Content-Type": "application/json" } : {}),

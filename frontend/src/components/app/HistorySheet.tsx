@@ -12,6 +12,7 @@ import { authApi } from "@/lib/authApi";
 import { useAuth } from "@/context/AuthContext";
 import { useSession } from "@/context/SessionContext";
 import { hydrateConversation } from "@/lib/conversation";
+import { navigateToChat, navigateToNewChat } from "@/lib/navigation";
 
 export default function HistorySheet({ open, onOpenChange }) {
   const { token, encKey } = useAuth();
@@ -42,7 +43,7 @@ export default function HistorySheet({ open, onOpenChange }) {
   const startNewChat = () => {
     s.resetSession();
     onOpenChange(false);
-    router.push("/chat/new");
+    navigateToNewChat();
   };
 
   const openConv = async (id) => {
@@ -51,7 +52,7 @@ export default function HistorySheet({ open, onOpenChange }) {
       const h = await hydrateConversation(d, encKey);
       s.loadConversation({ ...h, id });
       onOpenChange(false);
-      router.push(`/chat/${id}`);
+      navigateToChat(id);
       if (h.locked) toast.info("Data pribadi terkunci — masukkan kata sandi untuk membukanya.");
       else toast.success("Percakapan dibuka.");
     } catch (e) {
@@ -70,7 +71,7 @@ export default function HistorySheet({ open, onOpenChange }) {
       // from view too, otherwise autosave immediately re-creates it.
       if (target.id === s.convId || target.id === s.sessionId) {
         s.resetSession();
-        router.push("/chat/new");
+        navigateToNewChat();
         onOpenChange(false);
       }
       toast.success("Percakapan dihapus.");
@@ -110,7 +111,8 @@ export default function HistorySheet({ open, onOpenChange }) {
             </div>
           ) : (
             items.map((it) => {
-              const isActive = it.id === s.convId || it.id === s.sessionId || pathname === `/chat/${it.id}`;
+              const isHashMatch = typeof window !== "undefined" && (window.location.hash === `#id=${it.id}` || window.location.hash === `#${it.id}`);
+              const isActive = it.id === s.convId || it.id === s.sessionId || isHashMatch;
               // Two sibling buttons, not a button nested inside a button —
               // nested interactive elements are invalid HTML and leave the
               // delete control unreachable by keyboard.

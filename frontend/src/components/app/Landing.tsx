@@ -10,6 +10,7 @@ import RedactionDemoCard from "@/components/app/landing/RedactionDemoCard";
 import { useDocumentUpload } from "@/hooks/useDocumentUpload";
 import { useUI } from "@/context/UIContext";
 import { useSession } from "@/context/SessionContext";
+import { navigateToChat } from "@/lib/navigation";
 
 // --- GLITCHING REDACT CHIP COMPONENT ---
 const PERSONAL_TRUST = [
@@ -208,10 +209,12 @@ export default function Landing({ onOpenAuth }) {
     async (f) => {
       const id = resetSession();
       const ok = await uploadFile(f);
-      if (ok) router.push(`/chat/${id}`);
+      if (ok) {
+        navigateToChat(id);
+      }
       return ok;
     },
-    [uploadFile, router, resetSession]
+    [uploadFile, resetSession]
   );
 
   const isBisnis = audienceMode === "bisnis";
@@ -243,7 +246,7 @@ export default function Landing({ onOpenAuth }) {
   const loadSample = async (file) => {
     if (busy) return;
     try {
-      const res = await fetch(`${process.env.PUBLIC_URL || ""}/samples/${file}`);
+      const res = await fetch(`/samples/${file}`);
       if (!res.ok) throw new Error("not found");
       const blob = await res.blob();
       await ingest(new File([blob], file, { type: "application/pdf" }));

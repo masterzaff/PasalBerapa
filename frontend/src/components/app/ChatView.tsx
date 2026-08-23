@@ -26,6 +26,7 @@ import { useAnalysis, MODE_LABELS } from "@/context/AnalysisContext";
 import { useUI } from "@/context/UIContext";
 import { useAuth } from "@/context/AuthContext";
 import { authApi } from "@/lib/authApi";
+import { navigateToHome } from "@/lib/navigation";
 
 function PanelButton({ onClick, icon: Icon, label, count, testId }) {
   return (
@@ -108,7 +109,7 @@ export default function ChatView({ onOpenAuth }) {
       setConvId(null);
       setConvTitle(null);
       s.resetSession();
-      router.push("/");
+      navigateToHome();
     }
   };
 

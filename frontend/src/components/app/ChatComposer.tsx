@@ -10,6 +10,7 @@ import { useAnalysis } from "@/context/AnalysisContext";
 import { useAuth } from "@/context/AuthContext";
 import { useDocumentUpload } from "@/hooks/useDocumentUpload";
 import { useUI } from "@/context/UIContext";
+import { navigateToChat } from "@/lib/navigation";
 
 const QUICK = [
   { mode: "risk", label: "Bedah Risiko", icon: ShieldAlert },
@@ -119,9 +120,9 @@ export default function ChatComposer({ variant = "docked", seed, onOpenAuth, aut
   // previous conversation (Landing doesn't clear SessionContext on its own)
   // would silently absorb this new message/document into the old chat.
   const startFresh = () => {
-    if (pathname === "/" || pathname === "/chat/new") {
+    if (pathname === "/" || pathname === "/chat/new" || !window.location.hash || window.location.hash === "#new") {
       const id = s.resetSession();
-      router.push(`/chat/${id}`);
+      navigateToChat(id);
     }
   };
 

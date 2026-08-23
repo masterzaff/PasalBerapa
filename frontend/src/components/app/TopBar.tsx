@@ -7,6 +7,8 @@ import { useSession } from "@/context/SessionContext";
 import { useAuth } from "@/context/AuthContext";
 import { useUI } from "@/context/UIContext";
 
+import { navigateToNewChat, navigateToHome } from "@/lib/navigation";
+
 export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome, onOpenUnlock, onOpenChangePw }) {
   const { resetSession, hasDocument, messages } = useSession();
   const { user, logout, encKey } = useAuth();
@@ -15,18 +17,19 @@ export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome, onOpenUnlo
   const pathname = usePathname();
 
   const isSessionActive = hasDocument || messages.length > 0;
+  const isHashActive = typeof window !== "undefined" && Boolean(window.location.hash && window.location.hash !== "#new" && window.location.hash !== "#");
   const isChatPage = pathname?.startsWith("/chat");
-  const isNewChatPage = pathname === "/chat/new";
-  const showNewChatButton = isSessionActive || (isChatPage && !isNewChatPage);
+  const isNewChatPage = pathname === "/chat/new" || (typeof window !== "undefined" && window.location.hash === "#new");
+  const showNewChatButton = isSessionActive || isHashActive || (isChatPage && !isNewChatPage);
 
   // The logo is navigation, not a reset — wiping an in-progress conversation
   // just because someone clicked the wordmark is silent data loss. Use "Chat
   // baru" to actually start over.
-  const goHome = onGoHome || (() => router.push("/"));
+  const goHome = onGoHome || (() => navigateToHome());
 
   const startNewChat = () => {
     resetSession();
-    router.push("/chat/new");
+    navigateToNewChat();
   };
 
   return (

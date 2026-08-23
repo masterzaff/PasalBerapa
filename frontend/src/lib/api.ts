@@ -78,11 +78,10 @@ async function postJson(url, body, timeoutMs, signal = null) {
   }
 }
 
-// Health check against the AI node base URL. Returns {ok, latencyMs, detail}.
+// Health check against the Backend Server. Returns {ok, latencyMs, detail}.
 export async function testConnection(cfg = getEndpoints()) {
-  const base = (cfg.aiNodeUrl || "").trim();
-  if (!base) throw new NotConfiguredError("AI Node URL");
-  const url = base.replace(/\/$/, "") + "/health";
+  const url = (cfg.healthEndpoint || `${cfg.apiRoot || "/api"}/health`).trim();
+  if (!url) throw new NotConfiguredError("Health check URL");
   const started = performance.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), Math.min(cfg.timeoutMs || 15000, 15000));

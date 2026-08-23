@@ -1,20 +1,32 @@
 // External-endpoint config for PasalBerapa?.
 //
-// The frontend is a privacy-first WRAPPER: PII masking + LLM analysis run on the
-// AI node. Endpoints come from build-time env only.
-//
-// There used to be a Settings panel that wrote overrides to localStorage and a
-// whole read-merge-reset layer behind it. Both are gone: deployment config
-// belongs to the deployment, not to per-browser state that silently diverges
-// from it and can only be inspected by opening devtools.
-//
-// NOTE: NEXT_PUBLIC_* is inlined by Next at build time, so changing any of these
-// requires a rebuild — that is the intended contract now, not a limitation.
+// The frontend is a static client that connects to the PasalBerapa Backend Hub.
+// The backend server is the single entry point (handling health, auth, conversations,
+// and reverse-proxying AI node analysis and PII masking).
+
+const RAW_API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ||
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  process.env.NEXT_PUBLIC_AI_NODE_URL ||
+  (process.env.NODE_ENV === "development" ? "http://localhost:8000" : "")
+).trim();
+
+// Strip trailing slash
+const BASE_URL = RAW_API_URL.replace(/\/+$/, "");
+
+// Ensure apiRoot is properly formatted (e.g. "http://localhost:8000/api" or "/api")
+const API_ROOT = BASE_URL
+  ? BASE_URL.endsWith("/api")
+    ? BASE_URL
+    : `${BASE_URL}/api`
+  : "/api";
 
 const ENDPOINTS = Object.freeze({
-  aiNodeUrl: process.env.NEXT_PUBLIC_AI_NODE_URL || process.env.REACT_APP_AI_NODE_URL || "http://localhost:8000/api",
-  piiEndpoint: process.env.NEXT_PUBLIC_PII_ENDPOINT || process.env.REACT_APP_PII_ENDPOINT || "http://localhost:8000/api/mask",
-  analyzeEndpoint: process.env.NEXT_PUBLIC_ANALYZE_ENDPOINT || process.env.REACT_APP_ANALYZE_ENDPOINT || "http://localhost:8000/api/analyze",
+  baseUrl: BASE_URL,
+  apiRoot: API_ROOT,
+  healthEndpoint: `${API_ROOT}/health`,
+  piiEndpoint: `${API_ROOT}/mask`,
+  analyzeEndpoint: `${API_ROOT}/analyze`,
   timeoutMs: Number(process.env.NEXT_PUBLIC_TIMEOUT_MS) || 60000,
 });
 
@@ -31,3 +43,4 @@ export function hasAnalyzeConfigured(cfg = getEndpoints()) {
 export function hasMaskConfigured(cfg = getEndpoints()) {
   return Boolean(cfg.piiEndpoint && cfg.piiEndpoint.trim());
 }
+

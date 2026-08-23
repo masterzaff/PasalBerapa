@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { hydrateConversation } from "@/lib/conversation";
 import { useSession } from "@/context/SessionContext";
 import { useAuth } from "@/context/AuthContext";
 import { authApi } from "@/lib/authApi";
+import { parseRoute, navigateToChat, navigateToNewChat, navigateToHome, RouteState } from "@/lib/navigation";
 import TopBar from "@/components/app/TopBar";
 import Landing from "@/components/app/Landing";
 import ChatView from "@/components/app/ChatView";
@@ -22,90 +23,103 @@ interface AppShellProps {
   isNewChat?: boolean;
 }
 
-export default function AppShell({ sessionId: urlId, isNewChat = false }: AppShellProps = {}) {
-  const { hasDocument, messages, sessionId, convVersion, loadConversation, showPiiModal, setShowPiiModal } = useSession();
+export default function AppShell({ sessionId: propId, isNewChat: propIsNew = false }: AppShellProps = {}) {
+  const { hasDocument, messages, sessionId, convVersion, loadConversation, resetSession, showPiiModal, setShowPiiModal } = useSession();
   const { token, encKey, loading: authLoading } = useAuth();
-  const router = useRouter();
   const pathname = usePathname();
 
   const [mounted, setMounted] = useState(false);
+  const [route, setRoute] = useState<RouteState>({ sessionId: propId, isNewChat: propIsNew, isHome: !propId && !propIsNew });
   const [showAuth, setShowAuth] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showUnlock, setShowUnlock] = useState(false);
   const [showChangePw, setShowChangePw] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+
+  // Sync route from URL / hash
+  const updateRoute = useCallback(() => {
+    const r = parseRoute();
+    setRoute({
+      sessionId: r.sessionId || propId,
+      isNewChat: r.isNewChat || propIsNew,
+      isHome: r.isHome && !propId && !propIsNew,
+    });
+  }, [propId, propIsNew]);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    updateRoute();
 
-  const [restoring, setRestoring] = useState(false);
+    window.addEventListener("hashchange", updateRoute);
+    window.addEventListener("popstate", updateRoute);
+    return () => {
+      window.removeEventListener("hashchange", updateRoute);
+      window.removeEventListener("popstate", updateRoute);
+    };
+  }, [updateRoute]);
+
+  const activeUrlId = route.sessionId && route.sessionId !== "_" ? route.sessionId : undefined;
+  const isExplicitNewChat = route.isNewChat;
 
   const started = hasDocument || messages.length > 0;
-  const isChat = Boolean(isNewChat || urlId || (pathname !== "/" && mounted && (started || restoring)));
+  const isChat = Boolean(isExplicitNewChat || activeUrlId || (mounted && (started || restoring || !route.isHome)));
   const openAuth = () => setShowAuth(true);
   const openHistory = () => setShowHistory(true);
 
-  // 1) Reflect the active session in the URL (so refresh keeps /chat/:id).
+  // 1) Reflect the active session in the URL hash (e.g. #id=xxx) so refresh keeps the session on CDN
   useEffect(() => {
     if (!mounted || !started || !sessionId) return;
-    if (pathname === "/") return; // Jangan redirect paksa jika user berada di home "/"
-    const target = `/chat/${sessionId}`;
-    if (pathname !== target && pathname.startsWith("/chat")) {
-      router.replace(target);
-    }
-  }, [mounted, started, sessionId, pathname, router]);
+    if (route.isHome && !started) return;
+    navigateToChat(sessionId);
+  }, [mounted, started, sessionId, route.isHome]);
 
-  // 2) The server is the source of truth for a saved conversation, not
-  //    sessionStorage — logged in or not (an anonymous conversation is
-  //    saved masked/ownerless too, see ChatView's persist()) — so fetch on
-  //    every /chat/:id mount, not only when the local sessionId doesn't
-  //    match. Keyed on the URL id (via triedRef, once per mount) so
-  //    navigating between two saved conversations restores each.
-  //
-  //    When the local sessionId already matches urlId (e.g. sessionStorage
-  //    already holds this conversation), paint from that instantly — no
-  //    restoring spinner, no redirect if the fetch fails — and reconcile in
-  //    the background: apply the fetch only if the server isn't behind what
-  //    we already have. A just-finished autosave bumps convVersionRef
-  //    immediately, so this can't clobber our own write; it picks up another
-  //    tab/device's edits and backfills risks/citations an older local
-  //    snapshot never had.
+  // 2) Restore conversation from server on direct URL load or hash change
   const convVersionRef = useRef(convVersion);
   useEffect(() => { convVersionRef.current = convVersion; }, [convVersion]);
 
-  const triedRef = useRef(null);
+  const triedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!mounted || !urlId || urlId === "new" || isNewChat || authLoading) return;
-    if (!sessionId) return; // session state not hydrated yet
-    if (triedRef.current === urlId) return;
-    triedRef.current = urlId;
-    const isFreshLoad = sessionId !== urlId;
+    if (!mounted || !activeUrlId || activeUrlId === "new" || isExplicitNewChat || authLoading) return;
+    if (!sessionId) return;
+    if (triedRef.current === activeUrlId) return;
+    triedRef.current = activeUrlId;
+    const isFreshLoad = sessionId !== activeUrlId;
     if (isFreshLoad) setRestoring(true);
     authApi
-      .getConversation(urlId, token)
+      .getConversation(activeUrlId, token)
       .then(async (d) => {
         const serverVersion = typeof d.version === "number" ? d.version : 0;
         if (!isFreshLoad && serverVersion < convVersionRef.current) return;
         const h = await hydrateConversation(d, encKey);
-        // Feedback lookup requires ownership (login), so it's a best-effort
-        // no-op for an anonymous restore rather than a hard requirement.
         const feedback = token
-          ? await authApi.getConversationFeedback(urlId, token).catch(() => ({}))
+          ? await authApi.getConversationFeedback(activeUrlId, token).catch(() => ({}))
           : {};
-        loadConversation({ ...h, id: urlId, feedback });
+        loadConversation({ ...h, id: activeUrlId, feedback });
         if (h.locked) toast.info("Data pribadi terkunci — masukkan kata sandi untuk membukanya.");
       })
-      .catch(() => { if (isFreshLoad) router.replace("/"); })
+      .catch(() => {
+        if (isFreshLoad) {
+          navigateToHome();
+          setRoute({ sessionId: undefined, isNewChat: false, isHome: true });
+        }
+      })
       .finally(() => { if (isFreshLoad) setRestoring(false); });
-  }, [mounted, urlId, isNewChat, sessionId, token, encKey, authLoading, router, loadConversation]);
+  }, [mounted, activeUrlId, isExplicitNewChat, sessionId, token, encKey, authLoading, loadConversation]);
 
-  const goHome = () => {
-    router.push("/");
+  const handleGoHome = () => {
+    navigateToHome();
+    setRoute({ sessionId: undefined, isNewChat: false, isHome: true });
   };
 
   return (
     <div className="App flex min-h-screen flex-col bg-background text-foreground paper-grain">
-      <TopBar onOpenAuth={openAuth} onOpenHistory={openHistory} onGoHome={goHome} onOpenUnlock={() => setShowUnlock(true)} onOpenChangePw={() => setShowChangePw(true)} />
+      <TopBar
+        onOpenAuth={openAuth}
+        onOpenHistory={openHistory}
+        onGoHome={handleGoHome}
+        onOpenUnlock={() => setShowUnlock(true)}
+        onOpenChangePw={() => setShowChangePw(true)}
+      />
       <main className="flex min-h-0 flex-1 flex-col">
         {isChat ? (
           <ChatView onOpenAuth={openAuth} onOpenHistory={openHistory} />
