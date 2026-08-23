@@ -52,7 +52,19 @@ export function remaskText(text, mapping) {
 // history path used to inline this separately, which is how they drifted apart.
 export function remaskMessages(messages, mapping) {
   if (!Array.isArray(messages)) return [];
-  return messages.map((m) => ({ ...m, content: remaskText(m.content || "", mapping) }));
+  return messages.map((m) => ({
+    ...m,
+    content: remaskText(m.content || "", mapping),
+    versions: Array.isArray(m.versions)
+      ? m.versions.map((v) => ({
+          ...v,
+          content: remaskText(v.content || "", mapping),
+          citations: Array.isArray(v.citations)
+            ? v.citations.map((c) => ({ ...c, snippet: remaskText(c.snippet || "", mapping) }))
+            : v.citations,
+        }))
+      : m.versions,
+  }));
 }
 
 export function unmaskMessages(messages, mapping) {
@@ -63,6 +75,15 @@ export function unmaskMessages(messages, mapping) {
     citations: Array.isArray(m.citations)
       ? m.citations.map((c) => ({ ...c, snippet: unmaskText(c.snippet || "", mapping) }))
       : m.citations,
+    versions: Array.isArray(m.versions)
+      ? m.versions.map((v) => ({
+          ...v,
+          content: unmaskText(v.content || "", mapping),
+          citations: Array.isArray(v.citations)
+            ? v.citations.map((c) => ({ ...c, snippet: unmaskText(c.snippet || "", mapping) }))
+            : v.citations,
+        }))
+      : m.versions,
   }));
 }
 

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import ReactMarkdown from "react-markdown";
-import { Bot, User, BookMarked, Copy, Check, Scale, ShieldAlert, Wrench, ChevronDown, Bug, RotateCw, Eye } from "lucide-react";
+import { Bot, User, BookMarked, Copy, Check, Scale, ShieldAlert, Wrench, ChevronDown, Bug, RotateCw, Eye, Pencil } from "lucide-react";
 import { MODE_LABELS, useAnalysis } from "@/context/AnalysisContext";
 import { useSession } from "@/context/SessionContext";
 import { toast } from "sonner";
@@ -45,8 +45,10 @@ export function Message({ m }) {
   const [debugOpen, setDebugOpen] = useState(false);
   const [originalOpen, setOriginalOpen] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(m.content || "");
   const s = useSession();
-  const { run, busy: analyzing } = useAnalysis();
+  const { run, editUserMessage, busy: analyzing } = useAnalysis();
 
   // Nearest preceding USER turn — messages[i-1] is not necessarily one (an
   // errored reply, or a mode reply, can sit directly above this message).
@@ -72,6 +74,24 @@ export function Message({ m }) {
     }
   };
 
+  const handleSaveEdit = async () => {
+    const trimmed = (editContent || "").trim();
+    if (!trimmed) {
+      toast.warning("Pesan tidak boleh kosong.");
+      return;
+    }
+    if (trimmed === m.content) {
+      setIsEditing(false);
+      return;
+    }
+    setIsEditing(false);
+    try {
+      await editUserMessage({ messageId: m.id, newContent: trimmed });
+    } catch (e) {
+      // handled by run()
+    }
+  };
+
   const handleCopy = async () => {
     if (!m.content) return;
     await navigator.clipboard.writeText(m.content);
@@ -88,9 +108,76 @@ export function Message({ m }) {
         transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
         className="flex w-full justify-end"
       >
-        <div className="max-w-[82%] rounded-2xl rounded-tr-xs bg-primary px-4 py-2.5 text-sm leading-relaxed text-primary-foreground shadow-sm">
-          <div className="whitespace-pre-wrap select-text">{m.content}</div>
-        </div>
+        {isEditing ? (
+          <div className="w-full max-w-[85%] sm:max-w-[70%] space-y-2">
+            <textarea
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setIsEditing(false);
+                  setEditContent(m.content);
+                } else if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSaveEdit();
+                }
+              }}
+              className="w-full min-h-[75px] bg-background text-foreground border rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none shadow-xs"
+              autoFocus
+              placeholder="Edit pesan..."
+            />
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditing(false);
+                  setEditContent(m.content);
+                }}
+                className="px-3 py-1 text-xs rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveEdit}
+                disabled={analyzing}
+                className="px-3 py-1 text-xs rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                Simpan &amp; Kirim
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-end gap-1 max-w-[82%] group">
+            <div className="rounded-2xl rounded-tr-xs bg-primary px-4 py-2.5 text-sm leading-relaxed text-primary-foreground shadow-sm w-full">
+              <div className="whitespace-pre-wrap select-text">{m.content}</div>
+            </div>
+            <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors"
+                title="Salin pesan"
+              >
+                {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                <span>{copied ? "Tersalin" : "Salin"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditContent(m.content);
+                  setIsEditing(true);
+                }}
+                disabled={analyzing}
+                className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded-md hover:bg-muted transition-colors disabled:opacity-50"
+                title="Edit pesan"
+              >
+                <Pencil className="h-3 w-3" />
+                <span>Edit</span>
+              </button>
+            </div>
+          </div>
+        )}
       </motion.div>
     );
   }

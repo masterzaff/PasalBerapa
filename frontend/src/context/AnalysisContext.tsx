@@ -144,7 +144,23 @@ export function AnalysisProvider({ children }) {
         };
         if (regenerateMessageId) {
           s.setMessages((prev) =>
-            prev.map((m) => (m.id === regenerateMessageId ? { ...m, ...assistantMsg, ts: Date.now() } : m))
+            prev.map((m) => {
+              if (m.id === regenerateMessageId) {
+                const prevSnapshot = {
+                  content: m.content,
+                  citations: m.citations,
+                  actions: m.actions,
+                  debugMessages: m.debugMessages,
+                  sentMasked: m.sentMasked,
+                  receivedRaw: m.receivedRaw,
+                  mode: m.mode,
+                  ts: m.ts || Date.now(),
+                };
+                const versions = [...(m.versions || []), prevSnapshot];
+                return { ...m, ...assistantMsg, versions, ts: Date.now() };
+              }
+              return m;
+            })
           );
         } else {
           s.addMessage(assistantMsg);
@@ -173,10 +189,20 @@ export function AnalysisProvider({ children }) {
         // toast. The user's own turn stays so they can edit or retry from it.
         if (e instanceof CancelledError) {
           toast.info("Analisis dibatalkan.");
-          throw e;
-        }
-        if (!regenerateMessageId) {
-          s.addMessage({ role: "assistant", mode, error: true, content: `Waduh, gagal: ${e.message}` });
+        } else {
+          const errorMsg = {
+            role: "assistant",
+            mode,
+            content: `Terjadi kendala saat menganalisis dokumen: ${e.message || "Unknown error"}. Silakan coba lagi.`,
+            error: true,
+          };
+          if (regenerateMessageId) {
+            s.setMessages((prev) =>
+              prev.map((m) => (m.id === regenerateMessageId ? { ...m, ...errorMsg, ts: Date.now() } : m))
+            );
+          } else {
+            s.addMessage(errorMsg);
+          }
         }
         if (!(e instanceof NotConfiguredError)) toast.error(e.message || "Analisis gagal.");
         throw e;
@@ -211,6 +237,46 @@ export function AnalysisProvider({ children }) {
     [s, ensureMasked, executeAnalysis]
   );
 
+  const editUserMessage = useCallback(
+    async ({ messageId, newContent }) => {
+      const trimmed = (newContent || "").trim();
+      if (!trimmed) return;
+
+      const idx = s.messages.findIndex((m) => m.id === messageId);
+      if (idx === -1) return;
+
+      const targetUserMsg = s.messages[idx];
+      if (targetUserMsg.content === trimmed) return;
+
+      const prevUserSnapshot = {
+        content: targetUserMsg.content,
+        mode: targetUserMsg.mode,
+        ts: targetUserMsg.ts || Date.now(),
+      };
+      const versions = [...(targetUserMsg.versions || []), prevUserSnapshot];
+
+      // Update user message in-place with archived version history
+      s.setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === messageId
+            ? { ...msg, content: trimmed, versions, ts: Date.now() }
+            : msg
+        )
+      );
+
+      // If followed immediately by an assistant message, regenerate that assistant response
+      const nextMsg = s.messages[idx + 1];
+      const regenerateMessageId = nextMsg && nextMsg.role === "assistant" ? nextMsg.id : undefined;
+
+      return run({
+        mode: targetUserMsg.mode || "chat",
+        question: trimmed,
+        regenerateMessageId,
+      });
+    },
+    [s, run]
+  );
+
   const runPending = useCallback(async () => {
     const pending = pendingActionRef.current;
     pendingActionRef.current = null;
@@ -234,7 +300,7 @@ export function AnalysisProvider({ children }) {
     <Ctx.Provider
       value={{
         run, runPending, cancelPending, cancel, busy, busyMode, ensureMasked,
-        restoredQuestion, consumeRestoredQuestion,
+        restoredQuestion, consumeRestoredQuestion, editUserMessage,
       }}
     >
       {children}
