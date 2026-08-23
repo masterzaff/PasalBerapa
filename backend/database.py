@@ -1,12 +1,12 @@
 import os
 import uuid
 import logging
-from datetime import datetime, timezone
-from typing import AsyncGenerator
+from datetime import datetime, timezone, date as date_
+from typing import AsyncGenerator, Optional
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, Text, DateTime, ForeignKey, Integer, UniqueConstraint, select
+from sqlalchemy import String, Text, DateTime, Date, ForeignKey, Integer, UniqueConstraint, select
 from sqlalchemy.dialects.postgresql import JSONB, JSON
 
 logger = logging.getLogger("pasalberapa.db")
@@ -52,6 +52,11 @@ class User(Base):
     kdf_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    # Daily LLM-turn quota (registered users only — anonymous sessions already
+    # get the stricter 1-message-per-conversation guest limit). Reset happens
+    # lazily in auth.py whenever daily_turn_date != today, not via a cron job.
+    daily_turn_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    daily_turn_date: Mapped[Optional[date_]] = mapped_column(Date, nullable=True)
 
 class Conversation(Base):
     __tablename__ = "conversations"
@@ -212,6 +217,8 @@ async def init_db():
                 "ALTER TABLE conversations ALTER COLUMN user_id DROP NOT NULL",
                 "ALTER TABLE conversations ADD COLUMN IF NOT EXISTS anon_key VARCHAR(64)",
                 "ALTER TABLE message_feedback ADD COLUMN IF NOT EXISTS anon_key VARCHAR(64)",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_turn_count INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_turn_date DATE",
             ):
                 await conn.execute(text(ddl))
             await _drop_plaintext_pii(conn)

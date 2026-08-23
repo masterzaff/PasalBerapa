@@ -371,6 +371,28 @@ HISTORY_TURN_CAP = 10  # ~5 user turns + 5 AI replies — keep in sync with
 # ai_node/prompts.py's build_messages() slice and the frontend's "Konteks
 # dibatasi" warning threshold.
 
+DAILY_TURN_CAP = 20  # registered users only — anonymous sessions already get
+# the much stricter 1-message-per-conversation guest limit (see send_message).
+
+
+def _check_daily_quota(current: Optional[User]) -> None:
+    """Registered users get DAILY_TURN_CAP LLM turns per UTC day. Mutates
+    `current` in place (reset-if-new-day, then increment) — the caller's own
+    db.commit() persists it, and the caller's own except-HTTPException block
+    handles rollback if this raises."""
+    if not current:
+        return
+    today = datetime.now(timezone.utc).date()
+    if current.daily_turn_date != today:
+        current.daily_turn_date = today
+        current.daily_turn_count = 0
+    if current.daily_turn_count >= DAILY_TURN_CAP:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Kamu sudah mencapai batas {DAILY_TURN_CAP} pesan per hari. Coba lagi besok, ya.",
+        )
+    current.daily_turn_count += 1
+
 
 def _build_history(messages: List[dict], exclude_id: Optional[str] = None) -> List[dict]:
     hist = [
@@ -506,6 +528,7 @@ async def send_message(
             )
 
     try:
+        _check_daily_quota(current)
         messages = list(c.messages or [])
         user_msg = {
             "id": _new_message_id(),
@@ -591,6 +614,7 @@ async def edit_message(
         return {"id": c.id, "version": c.version, "user_message": target, "assistant_message": None}
 
     try:
+        _check_daily_quota(current)
         now_ms = _now_ms()
         prev_snapshot = {"content": target.get("content"), "mode": target.get("mode"), "ts": target.get("ts") or now_ms}
         target = {**target, "content": trimmed, "versions": [*(target.get("versions") or []), prev_snapshot], "ts": now_ms}
@@ -674,6 +698,7 @@ async def regenerate_message(
         raise HTTPException(status_code=404, detail="Pesan tidak ditemukan.")
 
     try:
+        _check_daily_quota(current)
         target = messages[idx]
         mode = target.get("mode") or "chat"
         prev_user = next((m for m in reversed(messages[:idx]) if m.get("role") == "user"), None)

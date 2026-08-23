@@ -226,6 +226,14 @@ export function AnalysisProvider({ children }) {
             s.setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
           }
           toast.warning("Mode tamu dibatasi 1 pesan per percakapan. Silakan buat akun untuk melanjutkan.");
+        } else if (e.message && e.message.includes("batas") && e.message.includes("per hari")) {
+          // Daily quota hit (registered users) — same treatment as the guest
+          // limit above: don't leave a "the AI failed" error bubble for
+          // something that isn't a failure, just tell the user why.
+          if (tempUserId) {
+            s.setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
+          }
+          toast.warning(e.message);
         } else {
           const errorMsg = {
             role: "assistant",
