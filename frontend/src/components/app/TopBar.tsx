@@ -56,7 +56,7 @@ export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome, onOpenUnlo
           className="flex items-center gap-2 rounded-lg transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Gavel className="h-6 w-6 -rotate-12 text-primary" />
-          <div className="leading-tight">
+          <div className="hidden leading-tight sm:block">
             <div className="font-display text-lg font-semibold tracking-tight md:text-xl">
               PasalBerapa?
             </div>
@@ -169,7 +169,8 @@ export default function TopBar({ onOpenAuth, onOpenHistory, onGoHome, onOpenUnlo
           ) : (
             <Button data-testid="open-auth-button" size="sm" onClick={onOpenAuth} className="gap-2">
               <UserPlus className="h-4 w-4" />
-              Daftar sekarang
+              <span className="sm:hidden">Daftar</span>
+              <span className="hidden sm:inline">Daftar sekarang</span>
             </Button>
           )}
         </div>
