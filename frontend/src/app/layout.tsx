@@ -4,9 +4,6 @@ import Providers from "./providers";
 export const metadata = {
   title: "PasalBerapa? — Bedah Kontrak Tanpa Ribet",
   description: "AI Legal Risk Platform untuk Bisnis, UMKM, & Personal. Bedah klausul berisiko dan red flags kontrak secara instan tanpa login.",
-  icons: {
-    icon: "/favicon.ico",
-  },
 };
 
 export default function RootLayout({ children }) {
